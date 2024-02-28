@@ -10,9 +10,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=256)
 parser.add_argument("--learning_rate", type=float, default=0.01)
-parser.add_argument("--project", type=str, default="ict-plus-uncertainty")
+parser.add_argument("--weight_decay", type=float, default=None)
 parser.add_argument("--data_path", type=str, default="./data/Training_Dataset_Cropped_Split/")
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
+parser.add_argument("--project", type=str, default="ict-plus-uncertainty")
 args = parser.parse_args()
 
 
@@ -54,19 +55,19 @@ if __name__ == "__main__":
     ds_train = tf.data.Dataset.from_tensor_slices((X_train, y_train))
     ds_train = ds_train.map(map_fn)
     ds_train = ds_train.map(augment)
-    ds_train = ds_train.cache().shuffle(len(X_train)).batch(args.batch_size)
+    ds_train = ds_train.shuffle(len(X_train)).batch(args.batch_size)
 
     ds_val = tf.data.Dataset.from_tensor_slices((X_val, y_val))
     ds_val = ds_val.map(map_fn)
-    ds_val = ds_val.cache().batch(args.batch_size)    
+    ds_val = ds_val.batch(args.batch_size)    
     
     base_model = tf.keras.applications.EfficientNetB0(include_top=False, weights=None, pooling='avg')
     model = tf.keras.Sequential([
         base_model,
         tf.keras.layers.Dense(4, activation='softmax')
-    ])
-
-    optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+    ])    
+    
+    optimizer = tf.keras.optimizers.experimental.AdamW(learning_rate=args.learning_rate, weight_decay=args.weight_decay)
     model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     model.fit(
         ds_train, 
