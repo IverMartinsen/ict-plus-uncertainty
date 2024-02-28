@@ -14,6 +14,10 @@ parser.add_argument("--weight_decay", type=float, default=None)
 parser.add_argument("--data_path", type=str, default="./data/Training_Dataset_Cropped_Split/")
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
 parser.add_argument("--project", type=str, default="ict-plus-uncertainty")
+parser.add_argument("--apply_crop", type=bool, default=False)
+parser.add_argument("--apply_flip", type=bool, default=False)
+parser.add_argument("--apply_brightness", type=bool, default=False)
+parser.add_argument("--apply_contrast", type=bool, default=False)
 args = parser.parse_args()
 
 
@@ -43,10 +47,16 @@ if __name__ == "__main__":
 
     def augment(image, label):
         image /= 255.0 # normalize to [0,1] range
-        image = tf.image.random_flip_left_right(image)
-        image = tf.image.random_flip_up_down(image)
-        image = tf.image.random_brightness(image, max_delta=0.1)
-        image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+        if args.apply_crop:            
+            image = tf.image.resize(image, [args.image_size[0]+32, args.image_size[1]+32])
+            image = tf.image.random_crop(image, args.image_size + [3])
+        if args.apply_flip:
+            image = tf.image.random_flip_left_right(image)
+            image = tf.image.random_flip_up_down(image)
+        if args.apply_brightness:
+            image = tf.image.random_brightness(image, max_delta=0.1)
+        if args.apply_contrast:
+            image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
         image = tf.clip_by_value(image, 0, 1)
         image *= 255.0 # back to [0,255] range
         return image, label
