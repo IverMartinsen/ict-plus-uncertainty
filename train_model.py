@@ -3,6 +3,7 @@ import glob
 import wandb
 import argparse
 import tensorflow as tf
+import numpy as np
 from datetime import datetime
 
 
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     ds_val = ds_val.map(map_fn)
     ds_val = ds_val.batch(args.batch_size)    
     
-    base_model = tf.keras.applications.EfficientNetB0(include_top=False, weights=None, pooling='avg')
+    base_model = tf.keras.applications.EfficientNetB1(include_top=False, weights=None, pooling='avg')
     wandb.config.update({'base_model': base_model.name})
     model = tf.keras.Sequential([
         base_model,
@@ -84,6 +85,12 @@ if __name__ == "__main__":
         decay_rate=10, 
         staircase=False,
         )
+    
+    values = np.linspace(args.learning_rate, args.learning_rate/100, 10).tolist()
+    boundaries = np.linspace(0, args.epochs*len(ds_train), 11).tolist()[1:-1]
+    
+    lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries, values)
+        
     
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
     # also monitor the learning rate
