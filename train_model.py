@@ -11,7 +11,8 @@ from datetime import datetime
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=256)
-parser.add_argument("--learning_rate", type=float, default=0.01)
+parser.add_argument("--learning_rate_start", type=float, default=5e-4)
+parser.add_argument("--learning_rate_end", type=float, default=5e-6)
 parser.add_argument("--weight_decay", type=float, default=None)
 parser.add_argument("--data_path", type=str, default="./data/Training_Dataset_Cropped_Split/")
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
@@ -87,29 +88,25 @@ if __name__ == "__main__":
         tf.keras.layers.Dense(4, activation='softmax')
     ])    
     
-    lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(
-        initial_learning_rate=args.learning_rate, 
-        decay_steps=args.epochs*len(ds_train), 
-        decay_rate=10, 
-        staircase=False,
-        )
     
-    values = np.linspace(args.learning_rate, args.learning_rate/100, 10).tolist()
-    boundaries = np.linspace(0, args.epochs*len(ds_train), 11).tolist()[1:-1]
-    
-    lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries, values)
-        
+    lr_schedule = tf.keras.optimizers.schedules.PolynomialDecay(
+        initial_learning_rate=args.learning_rate_start,
+        end_learning_rate=args.learning_rate_end,
+        decay_steps=args.epochs*len(ds_train),
+        power=2.0,
+        )    
+
     
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
     # also monitor the learning rate
     lr_variable = wandb.define_metric('learning_rate')
-    
     def log_lr(epoch, logs):
         wandb.log({'learning_rate': optimizer._decayed_lr(tf.float32).numpy()}, commit=False)
-    
     lr_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end=log_lr)
     
     model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    
     model.fit(
         ds_train, 
         epochs=args.epochs, 
