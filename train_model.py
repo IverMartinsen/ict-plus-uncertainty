@@ -20,6 +20,7 @@ parser.add_argument("--apply_crop", type=bool, default=False)
 parser.add_argument("--apply_flip", type=bool, default=False)
 parser.add_argument("--apply_brightness", type=bool, default=False)
 parser.add_argument("--apply_contrast", type=bool, default=False)
+parser.add_argument("--random_seed", type=int, default=1, help="Random seed for reproducibility")
 args = parser.parse_args()
 
 
