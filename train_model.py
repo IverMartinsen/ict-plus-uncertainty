@@ -81,7 +81,7 @@ if __name__ == "__main__":
     ds_val = ds_val.map(map_fn)
     ds_val = ds_val.batch(args.batch_size)    
     
-    base_model = tf.keras.applications.EfficientNetB1(include_top=False, weights=None, pooling='avg')
+    base_model = tf.keras.applications.EfficientNetB0(include_top=False, weights=None, pooling='avg')
     wandb.config.update({'base_model': base_model.name})
     model = tf.keras.Sequential([
         base_model,
