@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
 
     def augment(image, label):
-        image /= 255.0 # normalize to [0,1] range
+        image /= 255.0 # normalize to [0,1] range to avoid issues with random_brightness and random_contrast
         if args.apply_crop:            
             image = tf.image.resize(image, [args.image_size[0]+32, args.image_size[1]+32])
             image = tf.image.random_crop(image, args.image_size + [3])
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         if args.apply_contrast:
             image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
         image = tf.clip_by_value(image, 0, 1)
-        image *= 255.0 # back to [0,255] range
+        image *= 255.0 # back to [0,255] range as EfficientNet expects inputs in this range
         return image, label
 
 
