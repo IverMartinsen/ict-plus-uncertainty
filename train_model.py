@@ -2,6 +2,7 @@ import os
 import glob
 import wandb
 import argparse
+import random
 import tensorflow as tf
 import numpy as np
 from datetime import datetime
@@ -23,6 +24,12 @@ args = parser.parse_args()
 
 
 if __name__ == "__main__":
+
+    # Set random seeds for reproducibility of weights initialization
+    # All three of these must be set in order to make the weights initialization reproducible
+    tf.random.set_seed(args.random_seed)
+    np.random.seed(args.random_seed)
+    random.seed(args.random_seed)
 
     timestr = datetime.now().strftime("%Y%m%d_%H%M%S")
     
