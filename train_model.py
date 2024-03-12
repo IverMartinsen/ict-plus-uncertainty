@@ -114,3 +114,6 @@ if __name__ == "__main__":
         callbacks=[wandb.keras.WandbCallback(save_model=False), lr_callback]
         )
     
+    os.makedirs('./models', exist_ok=True)
+    model.save(f'./models/{timestr}.keras')
+    
