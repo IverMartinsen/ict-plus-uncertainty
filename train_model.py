@@ -17,6 +17,7 @@ parser.add_argument("--weight_decay", type=float, default=None)
 parser.add_argument("--data_path", type=str, default="./data/Training_Dataset_Cropped_Split/")
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
 parser.add_argument("--project", type=str, default="ict-plus-uncertainty")
+parser.add_argument("--save_path", type=str, default="./models/")
 parser.add_argument("--apply_flip", type=bool, default=False)
 parser.add_argument("--apply_translation", type=bool, default=False)
 parser.add_argument("--apply_rotation", type=bool, default=False)
@@ -112,6 +113,6 @@ if __name__ == "__main__":
         callbacks=[wandb.keras.WandbCallback(save_model=False), lr_callback]
         )
     
-    os.makedirs('./models', exist_ok=True)
-    model.save(f'./models/{timestr}.keras')
+    os.makedirs(args.save_path, exist_ok=True)
+    model.save(args.save_path + f'/{timestr}.keras')
     
