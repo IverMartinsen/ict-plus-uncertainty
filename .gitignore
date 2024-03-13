@@ -3,6 +3,8 @@ data/
 wandb/
 jobfile.yml
 .vscode/
+*.keras
+ensemble_stats/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
