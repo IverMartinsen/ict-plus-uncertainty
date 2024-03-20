@@ -43,7 +43,6 @@ ds_val = ds_val.batch(batch_size)
 # get the predictions
 Y_pred = np.empty((len(y_val), len(models), len(lab_to_int)))
 for i, model in enumerate(models):
-    model = tf.keras.models.load_model(model)
     predictions = model.predict(ds_val)
     Y_pred[:, i, :] = predictions
 
@@ -66,18 +65,18 @@ df['loss'] = -np.log(Y_pred.mean(axis=1)[np.arange(len(y_val)), y_val])
 df.to_csv('ensemble_predictions.csv', index=False)
 
 # group the data
-group1 = df[(df['agree'] == True) & (df['correct'] == True)]
-group2 = df[(df['agree'] == False) & (df['correct'] == True)]
-group3 = df[(df['agree'] == True) & (df['correct'] == False)]
-group4 = df[(df['agree'] == False) & (df['correct'] == False)]
+group1 = df[(df['agree'] == True) & (df['pred_mode'] == df['label'])]
+group2 = df[(df['agree'] == False) & (df['pred_mode'] == df['label'])]
+group3 = df[(df['agree'] == True) & (df['pred_mode'] != df['label'])]
+group4 = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
 
 # plot tricky images
 fig, axs = plt.subplots(1, 5, figsize=(10, 10))
 
 for i, ax in enumerate(axs):
     filename = group3.iloc[i, 0]
-    label = lab_to_long[int_to_lab[group3.iloc[i, 1]]]
-    pred = lab_to_long[int_to_lab[group3.iloc[i, -1]]]
+    label = lab_to_long[int_to_lab[group3['label'].iloc[i]]]
+    pred = lab_to_long[int_to_lab[group3['pred_mode'].iloc[i]]]
     ax.imshow(Image.open(filename).resize(image_size))
     ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
     ax.axis('off')
@@ -89,8 +88,8 @@ fig, axs = plt.subplots(5, 5, figsize=(10, 10))
 for i, ax in enumerate(axs.flatten()):
     try:
         filename = group4.iloc[i, 0]
-        label = lab_to_long[int_to_lab[group4.iloc[i, 1]]]
-        pred = lab_to_long[int_to_lab[group4.iloc[i, -1]]]
+        label = lab_to_long[int_to_lab[group4['label'].iloc[i]]]
+        pred = lab_to_long[int_to_lab[group4['pred_mode'].iloc[i]]]
         ax.imshow(Image.open(filename).resize(image_size))
         ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
     except:
@@ -109,7 +108,7 @@ plt.savefig('confusion_matrix.png', bbox_inches='tight', dpi=300)
 summary= pd.DataFrame(columns=[f'model_{i}' for i in range(len(models))] + ['majority_vote', 'mean_vote'], index=['accuracy'])
 for i in range(len(models)):
     summary[f'model_{i}'] = (df['label'] == df[f'model_{i}']).mean()
-summary['majority_vote'] = (df['label'] == df['pred']).mean()
+summary['majority_vote'] = (df['label'] == df['pred_mode']).mean()
 summary['mean_vote'] = (df['label'] == df['pred_mean']).mean()
 summary.to_csv('ensemble_summary.csv')
 
@@ -135,14 +134,14 @@ tot_var = np.trace(tot_cov, axis1=1, axis2=2)
 # plot the uncertainty
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-ax1.scatter(tot_var, df['loss'], c=df['correct'])
+ax1.scatter(tot_var, df['loss'], c=df['label'] == df['pred_mean'])
 ax1.set_ylabel('Loss')
 ax1.set_xlabel(r'tr$(\Sigma)$')
 ax1.set_title('Total variance vs Loss', fontsize=10, fontweight='bold')
 ax1.legend(['correct', 'wrong'])
 
-ax2.scatter(np.log(gen_var), df['loss'], c=df['correct'])
-ax2.set_ylabel('Loss')
+ax2.scatter(np.log(gen_var), np.log(df['loss']), c=df['label'] == df['pred_mean'])
+ax2.set_ylabel('log(Loss)')
 ax2.set_xlabel(r'log|$\Sigma$|')
 ax2.set_title('Generalized variance vs Loss', fontsize=10, fontweight='bold')
 ax2.legend(['correct', 'wrong'])
@@ -162,7 +161,7 @@ fig, axs = plt.subplots(1, 2, figsize=(10, 10))
 for i, ax in enumerate(axs):
     filename = group2.iloc[i, 0]
     label = lab_to_long[int_to_lab[group2.iloc[i, 1]]]
-    pred = lab_to_long[int_to_lab[group2.iloc[i, -1]]]
+    pred = lab_to_long[int_to_lab[group2['pred_mean'].iloc[i]]]
     ax.imshow(Image.open(filename).resize(image_size))
     ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
     ax.axis('off')
@@ -175,7 +174,7 @@ for i, ax in enumerate(axs.flatten()):
     try:
         filename = group4.iloc[i, 0]
         label = lab_to_long[int_to_lab[group4.iloc[i, 1]]]
-        pred = lab_to_long[int_to_lab[group4.iloc[i, -1]]]
+        pred = lab_to_long[int_to_lab[group4['pred_mean'].iloc[i]]]
         ax.imshow(Image.open(filename).resize(image_size))
         ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
     except:
