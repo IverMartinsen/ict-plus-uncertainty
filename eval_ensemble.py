@@ -8,10 +8,13 @@ from PIL import Image
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.metrics import classification_report
+from utils import lab_to_int, lab_to_long, make_dataset, load_data, compute_predictive_variance, plot_images
 
 # hyperparameters
 image_size = [224, 224]
 batch_size = 32
+destination = './ensemble_stats/'
+path_to_val_data = './data/Training_Dataset_Cropped_Split/val/'
 
 # load the models
 path_to_models = './ensemble/'
@@ -20,31 +23,18 @@ models.sort()
 models = [tf.keras.models.load_model(m) for m in models]
 
 # load the validation data
-path_to_val_data = './data/Training_Dataset_Cropped_Split/val/'
-
-lab_to_int = {'A': 0, 'B': 1, 'S': 2, 'P': 3}
-int_to_lab = {v: k for k, v in lab_to_int.items()}
-lab_to_long = {'A': 'Benthic agglutinated', 'B': 'Benthic calcareous', 'S': 'Sediment', 'P': 'Planktic'}
-
-X_val = glob.glob(path_to_val_data + '**/*.png', recursive=True)
-y_val = [os.path.basename(os.path.dirname(f)) for f in X_val]
-y_val = [lab_to_int[l] for l in y_val]
-
-def map_fn(filename, label):
-    image = tf.io.read_file(filename)
-    image = tf.image.decode_png(image, channels=3)
-    image = tf.image.resize(image, image_size)
-    return image, label
-
-ds_val = tf.data.Dataset.from_tensor_slices((X_val, y_val))
-ds_val = ds_val.map(map_fn)
-ds_val = ds_val.batch(batch_size)
+X_val, y_val = load_data(path_to_val_data)
+ds_val = make_dataset(X_val, y_val, image_size, batch_size, shuffle=False)
 
 # get the predictions
 Y_pred = np.empty((len(y_val), len(models), len(lab_to_int)))
 for i, model in enumerate(models):
     predictions = model.predict(ds_val)
     Y_pred[:, i, :] = predictions
+
+# =============================================================================
+# SUMMARY STATISTICS AND VISUALIZATIONS
+# =============================================================================
 
 # create a dataframe to store the predictions
 columns = ['filename', 'label'] + [f'model_{i}' for i in range(len(models))]
@@ -60,49 +50,14 @@ df['agree'] = np.prod(df.iloc[:, 2:] == df.iloc[:, 2].values[:, None], axis=1).a
 df['pred_mode'] = df.iloc[:, 2:].mode(axis=1)[0] # majority vote
 df['pred_mean'] = Y_pred.mean(axis=1).argmax(axis=1) # mean prediction
 df['loss'] = -np.log(Y_pred.mean(axis=1)[np.arange(len(y_val)), y_val])
-
-# save the predictions
-df.to_csv('ensemble_predictions.csv', index=False)
-
-# group the data
-group1 = df[(df['agree'] == True) & (df['pred_mode'] == df['label'])]
-group2 = df[(df['agree'] == False) & (df['pred_mode'] == df['label'])]
-group3 = df[(df['agree'] == True) & (df['pred_mode'] != df['label'])]
-group4 = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
-
-# plot tricky images
-fig, axs = plt.subplots(1, 5, figsize=(10, 10))
-
-for i, ax in enumerate(axs):
-    filename = group3.iloc[i, 0]
-    label = lab_to_long[int_to_lab[group3['label'].iloc[i]]]
-    pred = lab_to_long[int_to_lab[group3['pred_mode'].iloc[i]]]
-    ax.imshow(Image.open(filename).resize(image_size))
-    ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
-    ax.axis('off')
-plt.savefig('agree_wrong.png', bbox_inches='tight', dpi=300)
-
-# plot difficult images
-fig, axs = plt.subplots(5, 5, figsize=(10, 10))
-
-for i, ax in enumerate(axs.flatten()):
-    try:
-        filename = group4.iloc[i, 0]
-        label = lab_to_long[int_to_lab[group4['label'].iloc[i]]]
-        pred = lab_to_long[int_to_lab[group4['pred_mode'].iloc[i]]]
-        ax.imshow(Image.open(filename).resize(image_size))
-        ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
-    except:
-        pass
-    ax.axis('off')
-plt.savefig('disagree_wrong.png', bbox_inches='tight', dpi=300)
+df.to_csv(os.path.join(destination, 'ensemble_predictions.csv'), index=False)
 
 # confusion matrix
 confusion = confusion_matrix(df['label'], df['pred_mean'])
 disp = ConfusionMatrixDisplay(confusion, display_labels=list(lab_to_long.values()))
 fig, ax = plt.subplots(figsize=(10, 10))
 disp.plot(ax=ax)
-plt.savefig('confusion_matrix.png', bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(destination, 'confusion_matrix.png'), bbox_inches='tight', dpi=300)
 
 # total accuracy
 summary= pd.DataFrame(columns=[f'model_{i}' for i in range(len(models))] + ['majority_vote', 'mean_vote'], index=['accuracy'])
@@ -110,24 +65,19 @@ for i in range(len(models)):
     summary[f'model_{i}'] = (df['label'] == df[f'model_{i}']).mean()
 summary['majority_vote'] = (df['label'] == df['pred_mode']).mean()
 summary['mean_vote'] = (df['label'] == df['pred_mean']).mean()
-summary.to_csv('ensemble_summary.csv')
+summary = summary.T
+summary.to_csv(os.path.join(destination, 'ensemble_summary.csv'))
 
 # class wise accuracy
 class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
 class_wise_df = pd.DataFrame(class_wise_accuracy).T
-class_wise_df.to_csv('class_wise_accuracy.csv')
+class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv')
 
-# epistemic uncertainty
-ep_cov = np.matmul(Y_pred[:,:, :, np.newaxis], Y_pred[:, :, np.newaxis, :])
-ep_cov[:, :, np.arange(len(lab_to_int)), np.arange(len(lab_to_int))] = (Y_pred * (1 - Y_pred))
-ep_cov = ep_cov.mean(axis=1)
-# aleatoric uncertainty
-al_cov = np.zeros((len(y_val), len(lab_to_int), len(lab_to_int)))
-for i in range(len(y_val)):
-    al_cov[i] = np.cov(Y_pred[i].T)
-# total uncertainty
-tot_cov = ep_cov + al_cov
-# summarize the uncertainty
+# =============================================================================
+# UNCERTAINTY ANALYSIS AND VISUALIZATIONS
+# =============================================================================
+
+tot_cov = compute_predictive_variance(Y_pred)
 gen_var = np.linalg.det(tot_cov)
 tot_var = np.trace(tot_cov, axis1=1, axis2=2)
 
@@ -148,37 +98,17 @@ ax2.legend(['correct', 'wrong'])
 
 plt.savefig('uncertainty.png', bbox_inches='tight', dpi=300)
 
+# group the data based on the agreement
+tricky = df[(df['agree'] == True) & (df['pred_mode'] != df['label'])]
+hard = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
+
+plot_images(tricky, 5, 'tricky.png', image_size=image_size, destination=destination)
+plot_images(hard, 5, 'hard.png', image_size=image_size, destination=destination)
+
 # Group the data based on the uncertainty
-threshold = np.median(tot_var)
-group1 = df[(tot_var < threshold) & (df['pred_mean'] == df['label'])]
-group2 = df[(tot_var < threshold) & (df['pred_mean'] != df['label'])]
-group3 = df[(tot_var >= threshold) & (df['pred_mean'] == df['label'])]
-group4 = df[(tot_var >= threshold) & (df['pred_mean'] != df['label'])]
+threshold = np.median(gen_var)
+tricky = df[(gen_var < threshold) & (df['pred_mean'] != df['label'])]
+hard = df[(gen_var >= threshold) & (df['pred_mean'] != df['label'])]
 
-# plot tricky images
-fig, axs = plt.subplots(1, 2, figsize=(10, 10))
-
-for i, ax in enumerate(axs):
-    filename = group2.iloc[i, 0]
-    label = lab_to_long[int_to_lab[group2.iloc[i, 1]]]
-    pred = lab_to_long[int_to_lab[group2['pred_mean'].iloc[i]]]
-    ax.imshow(Image.open(filename).resize(image_size))
-    ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
-    ax.axis('off')
-plt.savefig('agree_wrong_tot_var.png', bbox_inches='tight', dpi=300)
-
-# plot difficult images
-fig, axs = plt.subplots(5, 5, figsize=(10, 10))
-
-for i, ax in enumerate(axs.flatten()):
-    try:
-        filename = group4.iloc[i, 0]
-        label = lab_to_long[int_to_lab[group4.iloc[i, 1]]]
-        pred = lab_to_long[int_to_lab[group4['pred_mean'].iloc[i]]]
-        ax.imshow(Image.open(filename).resize(image_size))
-        ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
-    except:
-        pass
-    ax.axis('off')
-plt.savefig('disagree_wrong_tot_var.png', bbox_inches='tight', dpi=300)
-
+plot_images(tricky, 2, 'tricky_gen_var.png', image_size=image_size, destination=destination)
+plot_images(hard, 5, 'hard_gen_var.png', image_size=image_size, destination=destination)

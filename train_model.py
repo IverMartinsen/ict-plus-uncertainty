@@ -6,6 +6,7 @@ import random
 import tensorflow as tf
 import numpy as np
 from datetime import datetime
+from utils import make_dataset, load_data
 
 
 parser = argparse.ArgumentParser()
@@ -39,32 +40,12 @@ if __name__ == "__main__":
     timestr = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     wandb.init(project=args.project, name=timestr, config=vars(args))
+
+    X_train, y_train = load_data(args.data_path + '/train/')
+    X_val, y_val = load_data(args.data_path + '/val/')
     
-    label_dict_map = {'A': 0, 'B': 1, 'S': 2, 'P': 3}
-
-    X_train = glob.glob(args.data_path + '/train/**/*.png', recursive=True)
-    y_train = [os.path.basename(os.path.dirname(f)) for f in X_train]
-    y_train = [label_dict_map[l] for l in y_train]
-
-    X_val = glob.glob(args.data_path + '/val/**/*.png', recursive=True)
-    y_val = [os.path.basename(os.path.dirname(f)) for f in X_val]
-    y_val = [label_dict_map[l] for l in y_val]
-
-
-    def map_fn(filename, label):
-        image = tf.io.read_file(filename)
-        image = tf.image.decode_png(image, channels=3)
-        image = tf.image.resize(image, args.image_size)
-        return image, label
-
-
-    ds_train = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-    ds_train = ds_train.map(map_fn)
-    ds_train = ds_train.shuffle(len(X_train)).batch(args.batch_size)
-
-    ds_val = tf.data.Dataset.from_tensor_slices((X_val, y_val))
-    ds_val = ds_val.map(map_fn)
-    ds_val = ds_val.batch(args.batch_size)    
+    ds_train = make_dataset(X_train, y_train, args.image_size, args.batch_size, shuffle=True)
+    ds_val = make_dataset(X_val, y_val, args.image_size, args.batch_size, shuffle=False)
     
     base_model = tf.keras.applications.EfficientNetB0(include_top=False, weights=None, pooling='avg')
     wandb.config.update({'base_model': base_model.name})
@@ -85,6 +66,7 @@ if __name__ == "__main__":
         layers.append(tf.keras.layers.RandomContrast(0.5))
     
     layers.append(base_model)
+    layers.append(tf.keras.layers.Dropout(0.2))
     layers.append(tf.keras.layers.Dense(4, activation='softmax'))
     
     model = tf.keras.Sequential(layers)
