@@ -5,6 +5,7 @@ jobfile.yml
 .vscode/
 *.keras
 ensemble_stats/
+dropout_stats/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
