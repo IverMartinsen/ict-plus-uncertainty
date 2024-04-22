@@ -1,8 +1,10 @@
 import os
+import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 from utils import (
     lab_to_int, lab_to_long, make_dataset, load_data, compute_predictive_variance, plot_images
@@ -13,7 +15,7 @@ path_to_model = './ensemble/20240312_155425.keras'
 destination = './dropout_stats/'
 image_size = [224, 224]
 batch_size = 32
-num_samples = 100
+num_samples = 10
 
 os.makedirs(destination, exist_ok=True)
 
@@ -43,7 +45,11 @@ ds_val = make_dataset(X_val, y_val, image_size, batch_size)
 # get the predictions
 Y_pred = np.empty((len(y_val), num_samples, len(lab_to_int)))
 
-for i in range(num_samples):
+tf.random.set_seed(1)
+np.random.seed(1)
+random.seed(1)
+
+for i in tqdm(range(num_samples)):
     predictions = []
     for batch in ds_val:
         predictions.append(dropout_call(batch[0]))
@@ -115,14 +121,14 @@ ax2.set_xlabel(r'log|$\Sigma$|')
 ax2.set_title('Generalized variance vs Loss', fontsize=10, fontweight='bold')
 ax2.legend(['correct', 'wrong'])
 
-plt.savefig('uncertainty.png', bbox_inches='tight', dpi=300)
+plt.savefig(os.path.join(destination, 'uncertainty.png'), bbox_inches='tight', dpi=300)
 
 # group the data based on the agreement
 hard = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
 tricky = df[(df['agree'] == True) & (df['pred_mode'] != df['label'])]
 
-plot_images(hard, 5, 'hard_agreement.png')
-plot_images(tricky, 5, 'tricky_agreement.png')
+plot_images(hard, 5, 'hard_agreement.png', destination)
+plot_images(tricky, 5, 'tricky_agreement.png', destination)
 
 # Group the data based on the uncertainty
 threshold = np.median(generalized_variance)
@@ -130,5 +136,5 @@ threshold = np.median(generalized_variance)
 hard = df[(generalized_variance >= threshold) & (df['pred_mean'] != df['label'])]
 tricky = df[(generalized_variance < threshold) & (df['pred_mean'] != df['label'])]
 
-plot_images(hard, 6, 'hard_gen_var.png')
-plot_images(tricky, 2, 'tricky_gen_var.png')
+plot_images(hard, 6, 'hard_gen_var.png', destination)
+plot_images(tricky, 2, 'tricky_gen_var.png', destination)
