@@ -71,7 +71,7 @@ summary.to_csv(os.path.join(destination, 'ensemble_summary.csv'))
 # class wise accuracy
 class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
 class_wise_df = pd.DataFrame(class_wise_accuracy).T
-class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv')
+class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv'))
 
 # =============================================================================
 # UNCERTAINTY ANALYSIS AND VISUALIZATIONS
