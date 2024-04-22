@@ -66,7 +66,6 @@ if __name__ == "__main__":
         layers.append(tf.keras.layers.RandomContrast(0.5))
     
     layers.append(base_model)
-    layers.append(tf.keras.layers.Dropout(0.2))
     layers.append(tf.keras.layers.Dense(4, activation='softmax'))
     
     model = tf.keras.Sequential(layers)
