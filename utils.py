@@ -36,7 +36,7 @@ def compute_predictive_variance(Y_pred):
     n = Y_pred.shape[0] # number of samples
     k = Y_pred.shape[-1] # number of classes
     # epistemic term
-    ep_cov = np.matmul(Y_pred[:,:, :, np.newaxis], Y_pred[:, :, np.newaxis, :])
+    ep_cov = -np.matmul(Y_pred[:,:, :, np.newaxis], Y_pred[:, :, np.newaxis, :])
     ep_cov[:, :, np.arange(k), np.arange(k)] = (Y_pred * (1 - Y_pred))
     ep_cov = ep_cov.mean(axis=1)
     # aleatoric term
@@ -44,8 +44,7 @@ def compute_predictive_variance(Y_pred):
     for i in range(n):
         al_cov[i] = np.cov(Y_pred[i].T)
     # total uncertainty
-    tot_cov = ep_cov + al_cov
-    return tot_cov
+    return ep_cov + al_cov
 
 def plot_images(group, cols, plotname, destination, image_size=[224, 224]):
     """
