@@ -5,7 +5,8 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report, f1_score
+from sklearn.linear_model import LogisticRegression
 from utils import (
     lab_to_int, lab_to_long, make_dataset, load_data, compute_predictive_variance, plot_images
     )
@@ -102,26 +103,58 @@ class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv'))
 # =============================================================================
 
 cov = compute_predictive_variance(Y_pred)
+eigvals = np.sort(np.linalg.eigvals(cov), axis=1)[:, ::-1]
 
-generalized_variance = np.linalg.det(cov)
-total_variance = np.trace(cov, axis1=1, axis2=2)
+y = (df['label'] != df['pred_mean'])
+log_model = LogisticRegression(class_weight='balanced')
 
-# plot the uncertainty
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+for i in range(4):
+    #logistic regression
+    x = np.log(eigvals[:, i].reshape(-1, 1))
+    try:
+        log_model.fit(x, y)
+        score = f1_score(y, log_model.predict(x))
+    except ValueError:
+        score = 0
 
-ax1.scatter(total_variance, df['loss'], c=df['label'] == df['pred_mean'])
-ax1.set_ylabel('Loss')
-ax1.set_xlabel(r'tr$(\Sigma)$')
-ax1.set_title('Total variance vs Loss', fontsize=10, fontweight='bold')
-ax1.legend(['correct', 'wrong'])
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
+    ax.set_ylabel('Loss')
+    ax.set_xlabel(r'$\lambda_{}$'.format(i+1))
+    ax.set_title(f'Eigenvalue {i+1} vs Loss (F1-score: {score:.2f})', fontsize=10, fontweight='bold')
+    ax.legend(['correct', 'wrong'])
+    plt.savefig(os.path.join(destination, f'eigenvalue_{i+1}.png'), bbox_inches='tight', dpi=300)
+    
+    if i == 0:
+        continue
+    
+    x = np.log(np.prod(eigvals[:, :i+1], axis=1).reshape(-1, 1))
+    try:
+        log_model.fit(x, y)
+        score = f1_score(y, log_model.predict(x))
+    except ValueError:
+        score = 0
 
-ax2.scatter(np.log(generalized_variance), np.log(df['loss']), c=df['label'] == df['pred_mean'])
-ax2.set_ylabel('log(Loss)')
-ax2.set_xlabel(r'log|$\Sigma$|')
-ax2.set_title('Generalized variance vs Loss', fontsize=10, fontweight='bold')
-ax2.legend(['correct', 'wrong'])
-
-plt.savefig(os.path.join(destination, 'uncertainty.png'), bbox_inches='tight', dpi=300)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
+    ax.set_ylabel('Loss')
+    ax.set_xlabel(r'$\prod \lambda_j$'.format(i+1))
+    ax.set_title(f'Product of first {i+1} eigenvalues vs Loss (F1-score: {score:.2f})', fontsize=10, fontweight='bold')
+    ax.legend(['correct', 'wrong'])
+    plt.savefig(os.path.join(destination, f'product_eigenvalue_{i+1}.png'), bbox_inches='tight', dpi=300)
+    
+    x = np.log(np.sum(eigvals[:, :i+1], axis=1).reshape(-1, 1))
+    log_model = LogisticRegression(class_weight='balanced')
+    log_model.fit(x, y)
+    score = f1_score(y, log_model.predict(x))
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
+    ax.set_ylabel('Loss')
+    ax.set_xlabel(r'$\sum \lambda_j$'.format(i+1))
+    ax.set_title(f'Sum of first {i+1} eigenvalues vs Loss (F1-score: {score:.2f})', fontsize=10, fontweight='bold')
+    ax.legend(['correct', 'wrong'])
+    plt.savefig(os.path.join(destination, f'sum_eigenvalue_{i+1}.png'), bbox_inches='tight', dpi=300)    
 
 # group the data based on the agreement
 hard = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
@@ -131,10 +164,11 @@ plot_images(hard, 5, 'hard_agreement.png', destination)
 plot_images(tricky, 5, 'tricky_agreement.png', destination)
 
 # Group the data based on the uncertainty
-threshold = np.median(generalized_variance)
+eig_prod2 = np.prod(eigvals[:, :2], axis=1)
+threshold = np.median(eig_prod2)
 
-hard = df[(generalized_variance >= threshold) & (df['pred_mean'] != df['label'])]
-tricky = df[(generalized_variance < threshold) & (df['pred_mean'] != df['label'])]
+hard = df[(eig_prod2 >= threshold) & (df['pred_mean'] != df['label'])]
+tricky = df[(eig_prod2 < threshold) & (df['pred_mean'] != df['label'])]
 
-plot_images(hard, 6, 'hard_gen_var.png', destination)
-plot_images(tricky, 2, 'tricky_gen_var.png', destination)
+plot_images(hard, 6, 'hard_eig_prod_2.png', destination)
+plot_images(tricky, 2, 'tricky_eig_prod_2.png', destination)
