@@ -2,6 +2,7 @@
 data/
 wandb/
 jobfile.yml
+swag_jobfile.yml
 .vscode/
 *.keras
 ensemble_stats/
