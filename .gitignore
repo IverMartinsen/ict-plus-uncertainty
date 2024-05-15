@@ -6,6 +6,7 @@ jobfile.yml
 *.keras
 ensemble_stats/
 dropout_stats/
+swag/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
