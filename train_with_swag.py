@@ -11,7 +11,7 @@ from swag_utils import SWAGDiagonalCallback
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=100)
-parser.add_argument("--batch_size", type=int, default=256)
+parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--learning_rate", type=float, default=5e-6)
 parser.add_argument("--data_path", type=str, default="./data/Training_Dataset_Cropped_Split/")
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
