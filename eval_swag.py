@@ -1,6 +1,7 @@
+import numpy as np
 import tensorflow as tf
-from swag_utils import assign_weights, read_weights
 from utils import make_dataset, load_data
+from swag_utils import assign_weights, read_weights
 
 path_to_weights = "./ensemble/20240312_155425.keras"
 
@@ -30,6 +31,14 @@ for i in range(10):
     delta = [tf.random.normal(shape=w.shape, stddev=tf.sqrt(w)) for w in variances]
     theta = [m + d for m, d in zip(mean_weights, delta)]
     assign_weights(model, theta)
+    
+    ### if update batch norm layers
+    for batch in training_data:
+        X_batch, y_batch = batch
+        model(X_batch, training=True)
+    ###
+    
+    
     model.evaluate(ds_val)
 
 
