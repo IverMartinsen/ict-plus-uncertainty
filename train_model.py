@@ -99,6 +99,11 @@ if __name__ == "__main__":
     
     model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     
+    os.makedirs(args.save_path, exist_ok=True)
+    
+    with open(os.path.join(args.destination, f'/{timestr}.txt'), 'w') as f:
+        f.write(str(vars(args)))
+    
     model.fit(
         ds_train, 
         epochs=args.epochs, 
@@ -106,6 +111,5 @@ if __name__ == "__main__":
         callbacks=[wandb.keras.WandbCallback(save_model=False), lr_callback]
         )
     
-    os.makedirs(args.save_path, exist_ok=True)
     model.save(args.save_path + f'/{timestr}.keras')
     
