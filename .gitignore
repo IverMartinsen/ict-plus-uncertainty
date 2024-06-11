@@ -8,6 +8,9 @@ swag_jobfile.yml
 ensemble_stats/
 dropout_stats/
 swag/
+sgld_jobfile.yml
+stats/
+models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
