@@ -1,9 +1,12 @@
 import os
 import glob
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import scipy.stats
 from PIL import Image
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report, cohen_kappa_score
 
 lab_to_int = {'A': 0, 'B': 1, 'S': 2, 'P': 3}
 int_to_lab = {v: k for k, v in lab_to_int.items()}
@@ -17,15 +20,17 @@ def map_fn(filename, label, image_size=[224, 224]):
 
 def load_data(path_to_data):
     X = glob.glob(path_to_data + '**/*.png', recursive=True)
+    X.sort()
     y = [os.path.basename(os.path.dirname(f)) for f in X]
     y = [lab_to_int[l] for l in y]
     return X, y
 
-def make_dataset(X, y, image_size, batch_size, shuffle=False):
+def make_dataset(X, y, image_size, batch_size, seed, shuffle=False):
     ds = tf.data.Dataset.from_tensor_slices((X, y))
     ds = ds.map(lambda x, y: map_fn(x, y, image_size))
+    ds = ds.cache()
     if shuffle:
-        ds = ds.shuffle(len(X))
+        ds = ds.shuffle(len(X), seed=seed)
     ds = ds.batch(batch_size)
     return ds
 
@@ -36,15 +41,15 @@ def compute_predictive_variance(Y_pred):
     n = Y_pred.shape[0] # number of samples
     k = Y_pred.shape[-1] # number of classes
     # epistemic term
-    ep_cov = -np.matmul(Y_pred[:,:, :, np.newaxis], Y_pred[:, :, np.newaxis, :])
-    ep_cov[:, :, np.arange(k), np.arange(k)] = (Y_pred * (1 - Y_pred))
-    ep_cov = ep_cov.mean(axis=1)
+    al_cov = -np.matmul(Y_pred[:,:, :, np.newaxis], Y_pred[:, :, np.newaxis, :])
+    al_cov[:, :, np.arange(k), np.arange(k)] = (Y_pred * (1 - Y_pred))
+    al_cov = al_cov.mean(axis=1)
     # aleatoric term
-    al_cov = np.zeros((n, k, k))
+    ep_cov = np.zeros((n, k, k))
     for i in range(n):
-        al_cov[i] = np.cov(Y_pred[i].T)
+        ep_cov[i] = np.cov(Y_pred[i].T)
     # total uncertainty
-    return ep_cov + al_cov
+    return ep_cov, al_cov
 
 def plot_images(group, cols, plotname, destination, image_size=[224, 224]):
     """
@@ -58,10 +63,11 @@ def plot_images(group, cols, plotname, destination, image_size=[224, 224]):
             label = lab_to_long[int_to_lab[group['label'].iloc[i]]]
             pred = lab_to_long[int_to_lab[group['pred_mode'].iloc[i]]]
             ax.imshow(Image.open(filename).resize(image_size))
-            ax.set_title(f'Label: {label}\nPred: {pred}', fontsize=6, fontweight='bold')
+            ax.set_title(f'Label: {label}\nPred: {pred}\nFile: {os.path.basename(filename)}', fontsize=6, fontweight='bold')
         except IndexError:
             pass
         ax.axis('off')
+    plt.subplots_adjust(hspace=0.3)
     plt.savefig(os.path.join(destination, plotname), bbox_inches='tight', dpi=300)
     plt.close()
 
@@ -160,20 +166,20 @@ def make_calibration_plots(y_pred, y_true, destination, num_bins=9):
     plt.title(f"Calibration error: {error:.3f}")
     plt.savefig(os.path.join(destination, "calibration1.png"), dpi=300)
 
-    plt.figure(figsize=(10, 5))
-    plt.bar((low + upp) / 2, freqs, width=step*0.95, color="b")
-    plt.plot(preds, preds - freqs)
-    plt.scatter(preds, preds - freqs)
-    plt.xlabel("Predicted probability")
-    plt.ylabel("Confidence error")
-    plt.title(f"Calibration error: {error:.3f}")
-    plt.savefig(os.path.join(destination, "calibration2.png"), dpi=300)
+    #plt.figure(figsize=(10, 5))
+    #plt.bar((low + upp) / 2, freqs, width=step*0.95, color="b")
+    ##plt.plot(preds, preds - freqs)
+    ##plt.scatter(preds, preds - freqs)
+    #plt.xlabel("Predicted probability")
+    #plt.ylabel("Confidence error")
+    #plt.title(f"Calibration error: {error:.3f}")
+    #plt.savefig(os.path.join(destination, "calibration2.png"), dpi=300)
 
 def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20):
     """
     Make a calibration plot with the bins ordered by frequency
     """
-    _, n = y_pred.shape
+    n, _ = y_pred.shape
 
     y_pred_ = np.argmax(y_pred, axis=1)
     y_conf = np.max(y_pred, axis=1)
@@ -211,3 +217,72 @@ def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20):
     plt.grid()
     plt.savefig(os.path.join(destination, 'calibration_plot_ordered.png'), bbox_inches='tight', dpi=300)
     plt.close()
+
+def store_predictions(y_pred, y, filenames, destination):
+
+    n, num_samples, _ = y_pred.shape
+    df = pd.DataFrame()
+    df['filename'] = filenames
+    df['label'] = y
+    for i in range(num_samples):
+        df[f'model_{i}'] = y_pred[:, i, :].argmax(axis=1)
+    df['agree'] = np.prod(df.iloc[:, 2:] == df.iloc[:, 2].values[:, None], axis=1).astype(bool) # check if all models agree
+    df['pred_mode'] = df.iloc[:, 2:].mode(axis=1)[0] # majority vote
+    df['percentage_agree'] = df.iloc[:, 2:12].apply(lambda x: x.value_counts().max() / x.value_counts().sum(), axis=1)
+    df['pred_mean'] = y_pred.mean(axis=1).argmax(axis=1) # mean prediction
+    df['loss'] = -np.log(y_pred.mean(axis=1)[np.arange(len(y)), y])
+    df['conf_mean'] = y_pred.mean(axis=1).max(axis=1) # mean confidence
+    df['var_mean'] = (df['conf_mean'] * (1 - df['conf_mean'])) # mean variance
+    iqr = scipy.stats.iqr(y_pred, axis=1)
+    iqr = iqr[np.arange(len(y)), df['pred_mean']]
+    df['iqr'] = iqr
+    ep_cov, al_cov = compute_predictive_variance(y_pred)
+    cov = ep_cov + al_cov
+    cov = cov[:, np.arange(4), np.arange(4)]
+    df['predictive_variance'] = cov[np.arange(n), np.array(df['pred_mean']).flatten()]
+    #eigvals = np.sort(np.linalg.eigvals(cov), axis=1)[:, ::-1]
+    df['total_variance'] = cov.sum(axis=1)
+    df['epistemic_variance'] = ep_cov[:, np.arange(4), np.arange(4)].sum(axis=1)
+    df['aleatoric_variance'] = al_cov[:, np.arange(4), np.arange(4)].sum(axis=1)
+    df.to_csv(os.path.join(destination, 'predictions.csv'), index=False)
+    
+    return df
+
+def store_confusion_matrix(labels, predictions, destination):
+    confusion = confusion_matrix(labels, predictions)
+    disp = ConfusionMatrixDisplay(confusion, display_labels=list(lab_to_long.values()))
+    fig, ax = plt.subplots(figsize=(10, 10))
+    disp.plot(ax=ax)
+    plt.savefig(os.path.join(destination, 'confusion_matrix.png'), bbox_inches='tight', dpi=300)
+
+def store_summary_stats(df, destination, num_models=10):
+
+    # total accuracy
+    summary = pd.DataFrame(index=['accuracy'])
+    for i in range(num_models):
+        summary[f'model_{i}'] = (df['label'] == df[f'model_{i}']).mean()
+    summary['majority_vote'] = (df['label'] == df['pred_mode']).mean()
+    summary['mean_vote'] = (df['label'] == df['pred_mean']).mean()
+
+    # compute cohens kappa between the models
+    kappa = np.zeros((num_models, num_models))
+    for i in range(num_models):
+        for j in range(i+1, num_models):
+            kappa[i, j] = cohen_kappa_score(df[f'model_{i}'], df[f'model_{j}'])
+    # upper triangular matrix
+    kappa = np.triu(kappa, k=1)
+
+    summary['kappa'] = kappa.sum() / np.count_nonzero(kappa)
+    summary['loss'] = df['loss'].mean()
+    summary = summary.T
+    summary.to_csv(os.path.join(destination, 'summary.csv'))
+
+def plot_uncertainty(x, loss, c, x_label, quantile_percentage, title, filename, destination):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.scatter(x, loss, c=c)
+    ax.set_ylabel('Loss')
+    ax.set_xlabel(x_label)
+    ax.axvline(x=np.quantile(x, quantile_percentage), color='black', linestyle='--')
+    ax.set_title(title, fontsize=10, fontweight='bold')
+    ax.legend(['correct', f'{quantile_percentage} quantile'])
+    plt.savefig(os.path.join(destination, filename), bbox_inches='tight', dpi=300)
