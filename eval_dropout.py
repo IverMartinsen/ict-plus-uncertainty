@@ -3,17 +3,27 @@ import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report, f1_score
-from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report
 from utils import (
-    lab_to_int, lab_to_long, make_dataset, load_data, compute_predictive_variance, plot_images
+    lab_to_int, 
+    lab_to_long, 
+    make_dataset, 
+    load_data, 
+    compute_predictive_variance, 
+    plot_images, 
+    store_predictions, 
+    store_confusion_matrix, 
+    store_summary_stats,
+    plot_uncertainty,
+    make_calibration_plots,
+    make_ordered_calibration_plot,
     )
+from optimizer import StochasticGradientLangevinDynamics
 
 # hyperparameters
-path_to_model = './ensemble/20240312_155425.keras'
-destination = './dropout_stats/'
+path_to_model = './ensemble/ensemble/20240606_122403.keras'
+destination = './stats/dropout_stats/'
 image_size = [224, 224]
 batch_size = 32
 num_samples = 10
@@ -21,7 +31,7 @@ num_samples = 10
 os.makedirs(destination, exist_ok=True)
 
 # load the model
-model = tf.keras.models.load_model(path_to_model)
+model = tf.keras.models.load_model(path_to_model, custom_objects={'pSGLangevinDynamics': StochasticGradientLangevinDynamics})
 base_model = model.layers[-2]
 classification_head = model.layers[-1]
 
@@ -41,7 +51,7 @@ def dropout_call(x):
 # load the validation data
 path_to_val_data = './data/Training_Dataset_Cropped_Split/val/'
 X_val, y_val = load_data(path_to_val_data)
-ds_val = make_dataset(X_val, y_val, image_size, batch_size)
+ds_val = make_dataset(X_val, y_val, image_size, batch_size, seed=1)
 
 # get the predictions
 Y_pred = np.empty((len(y_val), num_samples, len(lab_to_int)))
@@ -58,103 +68,112 @@ for i in tqdm(range(num_samples)):
     Y_pred[:, i, :] = predictions
 
 # =============================================================================
-# SUMMARY STATISTICS AND VISUALIZATIONS
+# STATISTICS
 # =============================================================================
 
 # create a dataframe to store the predictions
-columns = ['filename', 'label'] + [f'model_{i}' for i in range(num_samples)]
-df = pd.DataFrame(columns=columns)
-
-df['filename'] = X_val
-df['label'] = y_val
-
-for i in range(num_samples):
-    df[f'model_{i}'] = Y_pred[:, i, :].argmax(axis=1)
-    
-df['agree'] = np.prod(df.iloc[:, 2:] == df.iloc[:, 2].values[:, None], axis=1).astype(bool) # check if all models agree
-df['pred_mode'] = df.iloc[:, 2:].mode(axis=1)[0] # majority vote
-df['pred_mean'] = Y_pred.mean(axis=1).argmax(axis=1) # mean prediction
-df['loss'] = -np.log(Y_pred.mean(axis=1)[np.arange(len(y_val)), y_val])
-df.to_csv(os.path.join(destination, 'dropout_predictions.csv'), index=False)
-
-# total accuracy
-summary= pd.DataFrame(columns=[f'model_{i}' for i in range(num_samples)] + ['majority_vote', 'mean_vote'], index=['accuracy'])
-for i in range(num_samples):
-    summary[f'model_{i}'] = (df['label'] == df[f'model_{i}']).mean()
-summary['majority_vote'] = (df['label'] == df['pred_mode']).mean()
-summary['mean_vote'] = (df['label'] == df['pred_mean']).mean()
-summary = summary.T
-summary.to_csv(os.path.join(destination, 'dropout_summary.csv'))
-
+df = store_predictions(Y_pred, y_val, X_val, destination)
 # confusion matrix
-confusion = confusion_matrix(df['label'], df['pred_mean'])
-disp = ConfusionMatrixDisplay(confusion, display_labels=list(lab_to_long.values()))
-fig, ax = plt.subplots(figsize=(10, 10))
-disp.plot(ax=ax)
-plt.savefig(os.path.join(destination, 'confusion_matrix.png'), bbox_inches='tight', dpi=300)
+store_confusion_matrix(df['label'], df['pred_mean'], destination)
 
+store_summary_stats(df, destination)
 # class wise accuracy
 class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
 class_wise_df = pd.DataFrame(class_wise_accuracy).T
 class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv'))
 
 # =============================================================================
-# UNCERTAINTY ANALYSIS AND VISUALIZATIONS
+# UNCERTAINTY SCATTER PLOTS
 # =============================================================================
 
-cov = compute_predictive_variance(Y_pred)
+percentage = 0.75
+
+ep_cov, al_cov = compute_predictive_variance(Y_pred)
+cov = ep_cov + al_cov
 eigvals = np.sort(np.linalg.eigvals(cov), axis=1)[:, ::-1]
 
-y = (df['label'] != df['pred_mean'])
-log_model = LogisticRegression(class_weight='balanced')
+x = cov[:, np.arange(4), np.arange(4)] # diagonal of the covariance matrix
+idx = np.argmax(Y_pred.mean(axis=1), axis=1) # get the index of the maximum prediction
+x = x[np.arange(len(y_val)), idx] # get the diagonal of the covariance matrix at the maximum prediction
+
+# compute number of wrong predictions below the 75th percentile
+threshold = np.quantile(x, percentage)
+score = np.array((df['label'] != df['pred_mean'])[x < threshold]).sum()
+total_wrong = np.array(df['label'] != df['pred_mean']).sum()
+
+plot_uncertainty(
+    x=x,
+    loss=np.log(df['loss']),
+    c=df['label'] == df['pred_mean'],
+    x_label='Predictive Variance',
+    title=f'Predictive Variance vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
+    destination=destination,
+    quantile_percentage=percentage,
+    filename='predictive_variance.png'
+    )
 
 for i in range(4):
-    #logistic regression
-    x = np.log(eigvals[:, i].reshape(-1, 1))
-    try:
-        log_model.fit(x, y)
-        score = f1_score(y, log_model.predict(x))
-    except ValueError:
-        score = 0
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
-    ax.set_ylabel('Loss')
-    ax.set_xlabel(r'$\lambda_{}$'.format(i+1))
-    ax.set_title(f'Eigenvalue {i+1} vs Loss (F1-score: {score:.2f})', fontsize=10, fontweight='bold')
-    ax.legend(['correct', 'wrong'])
-    plt.savefig(os.path.join(destination, f'eigenvalue_{i+1}.png'), bbox_inches='tight', dpi=300)
+    x = eigvals[:, i].reshape(-1, 1)
+    threshold = np.quantile(x, percentage)
+    score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
+    
+    plot_uncertainty(
+        x=x,
+        loss=np.log(df['loss']),
+        c=df['label'] == df['pred_mean'],
+        x_label=r'$\lambda_{}$'.format(i+1),
+        title=f'Eigenvalue {i+1} vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
+        destination=destination,
+        quantile_percentage=percentage,
+        filename=f'eigenvalue_{i+1}.png'
+        )
     
     if i == 0:
         continue
     
-    x = np.log(np.prod(eigvals[:, :i+1], axis=1).reshape(-1, 1))
-    try:
-        log_model.fit(x, y)
-        score = f1_score(y, log_model.predict(x))
-    except ValueError:
-        score = 0
+    x = np.prod(eigvals[:, :i+1], axis=1).reshape(-1, 1)
+    x -= np.min(x)
+    x += 1e-24
+    x = np.log(x)
+    threshold = np.quantile(x, percentage)
+    score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
+        
+    plot_uncertainty(
+        x=x,
+        loss=np.log(df['loss']),
+        c=df['label'] == df['pred_mean'],
+        x_label=r'$\prod \lambda_j$'.format(i+1),
+        title=f'Product of first {i+1} eigenvalues vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
+        destination=destination,
+        quantile_percentage=percentage,
+        filename=f'product_eigenvalue_{i+1}.png'
+        )
+    
+    x = np.sum(eigvals[:, :i+1], axis=1).reshape(-1, 1)
+    x -= np.min(x)
+    x += 1e-24
+    x = np.log(x)
+    threshold = np.quantile(x, percentage)
+    score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
+    
+    plot_uncertainty(
+        x=x, 
+        loss=np.log(df['loss']), 
+        c=df['label'] == df['pred_mean'], 
+        x_label=r'$\sum \lambda_j$'.format(i+1), 
+        title=f'Sum of first {i+1} eigenvalues vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)', 
+        destination=destination,
+        quantile_percentage=percentage,
+        filename=f'sum_eigenvalue_{i+1}.png'
+        )
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
-    ax.set_ylabel('Loss')
-    ax.set_xlabel(r'$\prod \lambda_j$'.format(i+1))
-    ax.set_title(f'Product of first {i+1} eigenvalues vs Loss (F1-score: {score:.2f})', fontsize=10, fontweight='bold')
-    ax.legend(['correct', 'wrong'])
-    plt.savefig(os.path.join(destination, f'product_eigenvalue_{i+1}.png'), bbox_inches='tight', dpi=300)
-    
-    x = np.log(np.sum(eigvals[:, :i+1], axis=1).reshape(-1, 1))
-    log_model = LogisticRegression(class_weight='balanced')
-    log_model.fit(x, y)
-    score = f1_score(y, log_model.predict(x))
-    
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
-    ax.set_ylabel('Loss')
-    ax.set_xlabel(r'$\sum \lambda_j$'.format(i+1))
-    ax.set_title(f'Sum of first {i+1} eigenvalues vs Loss (F1-score: {score:.2f})', fontsize=10, fontweight='bold')
-    ax.legend(['correct', 'wrong'])
-    plt.savefig(os.path.join(destination, f'sum_eigenvalue_{i+1}.png'), bbox_inches='tight', dpi=300)    
+make_calibration_plots(Y_pred.mean(axis=1), y_val, destination, num_bins=9)
+make_ordered_calibration_plot(Y_pred.mean(axis=1), y_val, destination, num_bins=20)
+
+# =============================================================================
+# PLOT IMAGES
+# =============================================================================
 
 # group the data based on the agreement
 hard = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
@@ -172,3 +191,11 @@ tricky = df[(eig_prod2 < threshold) & (df['pred_mean'] != df['label'])]
 
 plot_images(hard, 6, 'hard_eig_prod_2.png', destination)
 plot_images(tricky, 2, 'tricky_eig_prod_2.png', destination)
+
+# Plot the 25 most uncertain images
+idx = np.argsort(df['var_mean'])[-25:]
+plot_images(df.iloc[idx], 5, 'most_uncertain.png', image_size=image_size, destination=destination)
+
+#plot the 25 most certain images
+idx = np.argsort(df['var_mean'])[:25]
+plot_images(df.iloc[idx], 5, 'most_certain.png', image_size=image_size, destination=destination)
