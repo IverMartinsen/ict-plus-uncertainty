@@ -1,0 +1,4 @@
+wandb==0.17.0
+matplotlib==3.6.2
+pandas
+scikit-learn
