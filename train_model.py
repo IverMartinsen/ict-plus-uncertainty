@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 import wandb
 import argparse
 import random
@@ -16,7 +17,8 @@ parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--learning_rate_start", type=float, default=5e-4)
 parser.add_argument("--learning_rate_end", type=float, default=5e-6)
 parser.add_argument("--weight_decay", type=float, default=None)
-parser.add_argument("--data_path", type=str, default="./data/Training_Dataset_Cropped_Split/")
+parser.add_argument("--data_path_train", type=str, default="./data/Training_Dataset_Cropped_Split/")
+parser.add_argument("--data_path_val", type=str, default=None)
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
 parser.add_argument("--project", type=str, default="ict-plus-uncertainty")
 parser.add_argument("--save_path", type=str, default="./models/")
@@ -35,20 +37,22 @@ if __name__ == "__main__":
 
     # Set random seeds for reproducibility of weights initialization
     # All three of these must be set in order to make the weights initialization reproducible
-    #random.seed(args.random_seed)
-    #tf.random.set_seed(args.random_seed)
-    #np.random.seed(args.random_seed)
-    tf.keras.utils.set_random_seed(args.random_seed)
+    random.seed(args.random_seed)
+    tf.random.set_seed(args.random_seed)
+    np.random.seed(args.random_seed)
+    #tf.keras.utils.set_random_seed(args.random_seed)
     
     timestr = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     wandb.init(project=args.project, name=timestr, config=vars(args))
 
-    X_train, y_train = load_data(args.data_path + '/train/')
-    X_val, y_val = load_data(args.data_path + '/val/')
-    
+    X_train, y_train = load_data(args.data_path_train)
     ds_train = make_dataset(X_train, y_train, args.image_size, args.batch_size, shuffle=True, seed=args.random_seed)
-    ds_val = make_dataset(X_val, y_val, args.image_size, args.batch_size, shuffle=False, seed=args.random_seed)
+    if args.data_path_val is None:
+        ds_val = None
+    else:
+        X_val, y_val = load_data(args.data_path_val)
+        ds_val = make_dataset(X_val, y_val, args.image_size, args.batch_size, shuffle=False, seed=args.random_seed)
     
     base_model = tf.keras.applications.EfficientNetB0(include_top=False, weights=None, pooling='avg')
     wandb.config.update({'base_model': base_model.name})
@@ -63,8 +67,8 @@ if __name__ == "__main__":
         layers.append(tf.keras.layers.RandomTranslation(0.2, 0.2, seed=args.random_seed))
     if args.apply_zoom:
         layers.append(tf.keras.layers.RandomZoom((-0.2, 0.0), seed=args.random_seed))
-    if args.apply_brightness:
-        layers.append(tf.keras.layers.RandomBrightness(0.2, seed=args.random_seed))
+    #if args.apply_brightness:
+    #    layers.append(tf.keras.layers.RandomBrightness(0.2, seed=args.random_seed))
     if args.apply_contrast:
         layers.append(tf.keras.layers.RandomContrast(0.4, seed=args.random_seed))
     
@@ -86,7 +90,7 @@ if __name__ == "__main__":
         learning_rate=lr_schedule,
         rho=0.9,
         epsilon=1e-7,
-        burnin=np.ceil(sample_size / args.batch_size).astype(int) * args.epochs,
+        burnin=1e8,
         data_size=sample_size,
         weight_decay=args.weight_decay,
         )
@@ -101,9 +105,8 @@ if __name__ == "__main__":
     
     os.makedirs(args.save_path, exist_ok=True)
     
-    with open(os.path.join(args.destination, f'/{timestr}.txt'), 'w') as f:
-        f.write(str(vars(args)))
-    
+    json.dump(vars(args), open(os.path.join(args.save_path, f'{timestr}.json'), 'w'))
+        
     model.fit(
         ds_train, 
         epochs=args.epochs, 
