@@ -2,8 +2,8 @@ import os
 import numpy as np
 from PIL import Image
 
-source_path = './data/Training_Dataset/'
-dest_path = './data/Training_Dataset_Cropped/'
+source_path = './data/Man vs machine_Iver/S/'
+dest_path = './data/Man vs machine_Iver_cropped/S/'
 
 
 def extract_center_crop(image, border_size=5):
