@@ -196,6 +196,8 @@ def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20):
     upper[-1] = 1.0
     lower = np.array([0.0] + list(upper[:-1]))
 
+    num_bins = len(upper)
+    
     acc = np.zeros(num_bins)
     conf = np.zeros(num_bins)
     obs = np.zeros(num_bins)
