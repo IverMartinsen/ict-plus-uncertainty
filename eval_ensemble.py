@@ -1,225 +1,71 @@
 import os
 import glob
+import json
 import tensorflow as tf
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from utils import (
     lab_to_int, 
     lab_to_long, 
     make_dataset, 
     load_data, 
-    compute_predictive_variance, 
-    plot_images, 
-    make_calibration_plots, 
-    make_ordered_calibration_plot,
     store_predictions,
     store_confusion_matrix,
     store_summary_stats,
-    plot_uncertainty
 )
 from optimizer import StochasticGradientLangevinDynamics
 
+
 # hyperparameters
+path_to_json = './models/ensemble.json'
+path_to_models = './models/'
+from_folder = False
 image_size = [224, 224]
 batch_size = 32
-destination = 'stats/swag_stats_scaled_30'#'./ensemble_stats/'
-path_to_val_data = './data/Training_Dataset_Cropped_Split/val/'
-path_to_models = './swag_ensembles/swag_ensemble_scaled_30/'
+destination = 'stats/ensemble_stats'
+path_to_val_data = './data/Man vs machine_Iver_cropped/'
 
-os.makedirs(destination, exist_ok=True)
+if __name__ == '__main__':
 
-# load the models
-models = glob.glob(path_to_models + '*.keras')
-models.sort()
-assert len(models) > 0, 'No models found'
-models = [tf.keras.models.load_model(m, custom_objects={'StochasticGradientLangevinDynamics': StochasticGradientLangevinDynamics}) for m in models]
+    # load the models
+    if from_folder:
+        models = glob.glob(path_to_models + '*.keras')
+        models.sort()
+    else:
+        config = json.load(open(path_to_json, 'r'))
+        keys = [k for k in config.keys() if 'model' in k]
+        models = [str(config[k]) for k in keys]
+        models = [os.path.join(path_to_models, m) for m in models]
+        models = [tf.keras.models.load_model(m, custom_objects={'StochasticGradientLangevinDynamics': StochasticGradientLangevinDynamics}) for m in models]
 
-# load the validation data
-X_val, y_val = load_data(path_to_val_data)
-ds_val = make_dataset(X_val, y_val, image_size, batch_size, shuffle=False, seed=1)
+    assert len(models) > 0, 'No models found'
 
-# get the predictions
-Y_pred = np.empty((len(y_val), len(models), len(lab_to_int)))
-for i, model in enumerate(models):
-    predictions = model.predict(ds_val)
-    Y_pred[:, i, :] = predictions
+    os.makedirs(destination, exist_ok=True)
 
-# =============================================================================
-# STATISTICS
-# =============================================================================
+    # load the validation data
+    X_val, y_val = load_data(path_to_val_data)
+    assert len(X_val) > 0, 'No validation data found'
+    ds_val = make_dataset(X_val, y_val, image_size, batch_size, shuffle=False, seed=1)
 
-df = store_predictions(Y_pred, y_val, X_val, destination)
+    # get the predictions
+    Y_pred = np.empty((len(y_val), len(models), len(lab_to_int)))
+    for i, model in enumerate(models):
+        predictions = model.predict(ds_val)
+        Y_pred[:, i, :] = predictions
 
-store_confusion_matrix(df['label'], df['pred_mean'], destination)
-
-store_summary_stats(df, destination)
-
-# class wise accuracy
-class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
-class_wise_df = pd.DataFrame(class_wise_accuracy).T
-class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv'))
-
-# =============================================================================
-# UNCERTAINTY SCATTER PLOTS
-# =============================================================================
-
-percentage = 0.75
-
-ep_cov, al_cov = compute_predictive_variance(Y_pred)
-cov = ep_cov + al_cov
-eigvals = np.sort(np.linalg.eigvals(cov), axis=1)[:, ::-1]
-
-x = cov[:, np.arange(4), np.arange(4)] # diagonal of the covariance matrix
-idx = np.argmax(Y_pred.mean(axis=1), axis=1) # get the index of the maximum prediction
-x = x[np.arange(len(y_val)), idx] # get the diagonal of the covariance matrix at the maximum prediction
-
-# compute number of wrong predictions below the 75th percentile
-threshold = np.quantile(x, percentage)
-score = np.array((df['label'] != df['pred_mean'])[x < threshold]).sum()
-total_wrong = np.array(df['label'] != df['pred_mean']).sum()
-
-plot_uncertainty(
-    x=x,
-    loss=np.log(df['loss']),
-    c=df['label'] == df['pred_mean'],
-    x_label='Predictive Variance',
-    title=f'Predictive Variance vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
-    destination=destination,
-    quantile_percentage=percentage,
-    filename='predictive_variance.png'
-    )
-
-x = df['percentage_agree'].values.reshape(-1, 1)
-x = 1 - x
-threshold = np.quantile(x, percentage)
-score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
-x += np.random.normal(0, 0.01, x.shape)
+    np.save(os.path.join(destination, 'predictions.npy'), Y_pred)
     
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.scatter(x, np.log(df['loss']), c=df['label'] == df['pred_mean'])
-ax.set_ylabel('Loss')
-ax.set_xlabel('1 - Percentage Agreement')
-ax.axvline(x=threshold, color='black', linestyle='--')
-ax.set_title(f'Percentage Agree vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)', fontsize=10, fontweight='bold')
-ax.legend(['correct', f'{percentage} quantile'])
-plt.savefig(os.path.join(destination, 'percentage_agree.png'), bbox_inches='tight', dpi=300)
+    # =============================================================================
+    # STATISTICS
+    # =============================================================================
 
-x = df['epistemic_variance'].values.reshape(-1, 1)
-threshold = np.quantile(x, percentage)
-score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
+    df = store_predictions(Y_pred, y_val, X_val, destination)
 
-plot_uncertainty(
-    x=x,
-    loss=np.log(df['loss']),
-    c=df['label'] == df['pred_mean'],
-    x_label='Epistemic Uncertainty',
-    title=f'Epistemic Uncertainty vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
-    destination=destination,
-    quantile_percentage=percentage,
-    filename='epistemic_uncertainty.png'
-    )
+    store_confusion_matrix(df['label'], df['pred_mean'], destination)
 
-x = df['aleatoric_variance'].values.reshape(-1, 1)
-threshold = np.quantile(x, percentage)
-score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
+    store_summary_stats(df, destination)
 
-plot_uncertainty(
-    x=x,
-    loss=np.log(df['loss']),
-    c=df['label'] == df['pred_mean'],
-    x_label='Aleatoric Uncertainty',
-    title=f'Aleatoric Uncertainty vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
-    destination=destination,
-    quantile_percentage=percentage,
-    filename='aleatoric_uncertainty.png'
-    )
-
-for i in range(4):
-
-    x = eigvals[:, i].reshape(-1, 1)
-    threshold = np.quantile(x, percentage)
-    score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
-    
-    plot_uncertainty(
-        x=x,
-        loss=np.log(df['loss']),
-        c=df['label'] == df['pred_mean'],
-        x_label=r'$\lambda_{}$'.format(i+1),
-        title=f'Eigenvalue {i+1} vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
-        destination=destination,
-        quantile_percentage=percentage,
-        filename=f'eigenvalue_{i+1}.png'
-        )
-    
-    if i == 0:
-        continue
-    
-    x = np.prod(eigvals[:, :i+1], axis=1).reshape(-1, 1)
-    x -= np.min(x)
-    x += 1e-24
-    x = np.log(x)
-    threshold = np.quantile(x, percentage)
-    score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
-        
-    plot_uncertainty(
-        x=x,
-        loss=np.log(df['loss']),
-        c=df['label'] == df['pred_mean'],
-        x_label=r'$\prod \lambda_j$'.format(i+1),
-        title=f'Product of first {i+1} eigenvalues vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)',
-        destination=destination,
-        quantile_percentage=percentage,
-        filename=f'product_eigenvalue_{i+1}.png'
-        )
-    
-    x = np.sum(eigvals[:, :i+1], axis=1).reshape(-1, 1)
-    x -= np.min(x)
-    x += 1e-24
-    x = np.log(x)
-    threshold = np.quantile(x, percentage)
-    score = np.array((df['label'] != df['pred_mean'])[x.flatten() < threshold]).sum()
-    
-    plot_uncertainty(
-        x=x, 
-        loss=np.log(df['loss']), 
-        c=df['label'] == df['pred_mean'], 
-        x_label=r'$\sum \lambda_j$'.format(i+1), 
-        title=f'Sum of first {i+1} eigenvalues vs Loss ({int(score)}/{int(total_wrong)} below {percentage} quantile)', 
-        destination=destination,
-        quantile_percentage=percentage,
-        filename=f'sum_eigenvalue_{i+1}.png'
-        )
-
-make_calibration_plots(Y_pred.mean(axis=1), y_val, destination, num_bins=7)
-make_ordered_calibration_plot(Y_pred.mean(axis=1), y_val, destination, num_bins=20)
-
-# =============================================================================
-# PLOT IMAGES
-# =============================================================================
-
-# group the data based on the agreement
-tricky = df[(df['agree'] == True) & (df['pred_mode'] != df['label'])]
-hard = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
-
-plot_images(tricky, 3, 'tricky.png', image_size=image_size, destination=destination)
-plot_images(hard, 5, 'hard.png', image_size=image_size, destination=destination)
-
-# Group the data based on the uncertainty
-eig1 = np.log(eigvals[:, 0])
-threshold = np.median(eig1)
-tricky = df[(eig1 < threshold) & (df['pred_mean'] != df['label'])]
-hard = df[(eig1 >= threshold) & (df['pred_mean'] != df['label'])]
-
-plot_images(tricky, 2, 'tricky_first_eig.png', image_size=image_size, destination=destination)
-plot_images(hard, 5, 'hard_first_eig.png', image_size=image_size, destination=destination)
-
-# Plot the 25 most uncertain images
-idx = np.argsort(df['var_mean'])[-25:]
-plot_images(df.iloc[idx], 5, 'most_uncertain.png', image_size=image_size, destination=destination)
-
-#plot the 25 most certain images
-idx = np.argsort(df['var_mean'])[:25]
-plot_images(df.iloc[idx], 5, 'most_certain.png', image_size=image_size, destination=destination)
-
+    class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
+    class_wise_df = pd.DataFrame(class_wise_accuracy).T
+    class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv'))
