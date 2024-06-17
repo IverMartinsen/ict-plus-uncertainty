@@ -9,6 +9,7 @@ import numpy as np
 from datetime import datetime
 from utils import make_dataset, load_data
 from optimizer import StochasticGradientLangevinDynamics
+from schedule import PolynomialDecay
 
 
 parser = argparse.ArgumentParser()
@@ -77,11 +78,12 @@ if __name__ == "__main__":
     
     model = tf.keras.Sequential(layers)
     
-    lr_schedule = tf.keras.optimizers.schedules.PolynomialDecay(
+    lr_schedule = PolynomialDecay(
         initial_learning_rate=args.learning_rate_start,
         end_learning_rate=args.learning_rate_end,
         decay_steps=args.epochs*len(ds_train),
         power=2.0,
+        warmup_steps=10*len(ds_train),
         )        
     
     sample_size = len(X_train)
