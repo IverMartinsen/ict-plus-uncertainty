@@ -35,14 +35,14 @@ if __name__ == '__main__':
     # =============================================================================
     # LOSS AGAINST IQR
     # =============================================================================
-    x = df['iqr'] + 1e-4
-    x = np.log(x)
+    x = df['iqr'] #+ 1e-4
+    #x = np.log(x)
     y = df['loss']
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.scatter(x, np.log(y), c=df['label'] == df['pred_mean'])
-    ax.set_ylabel('log (Loss)')
-    ax.set_xlabel('log(IQR)')
+    ax.scatter(x, y, c=df['label'] == df['pred_mean'])
+    ax.set_ylabel('Loss')
+    ax.set_xlabel('IQR')
     ax.axvline(x=np.quantile(x, 0.50), color='black', linestyle='--')
     ax.axvline(x=np.quantile(x, 0.75), color='black', linestyle='-.')
     ax.set_title('IQR vs Loss', fontsize=10, fontweight='bold')
@@ -133,13 +133,13 @@ if __name__ == '__main__':
     tricky = df[(df['agree'] == True) & (df['pred_mode'] != df['label'])]
     hard = df[(df['agree'] == False) & (df['pred_mode'] != df['label'])]
 
-    plot_images(tricky, 3, 'tricky.png', image_size=image_size, destination=destination)
-    plot_images(hard, 5, 'hard.png', image_size=image_size, destination=destination)
+    plot_images(tricky, 2, 'tricky.png', image_size=image_size, destination=destination)
+    plot_images(hard, 4, 'hard.png', image_size=image_size, destination=destination)
 
     # Plot the 25 most uncertain images
-    idx = np.argsort(df['var_mean'])[-25:]
+    idx = np.argsort(df['total_variance'])[-25:]
     plot_images(df.iloc[idx], 5, 'most_uncertain.png', image_size=image_size, destination=destination)
 
     #plot the 25 most certain images
-    idx = np.argsort(df['var_mean'])[:25]
+    idx = np.argsort(df['total_variance'])[:25]
     plot_images(df.iloc[idx], 5, 'most_certain.png', image_size=image_size, destination=destination)
