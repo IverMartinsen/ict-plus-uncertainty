@@ -63,21 +63,10 @@ if __name__ == '__main__':
         predictions = model.predict(ds_val)
         Y_pred[:, i, :] = predictions
 
-    print('Saving predictions and statistics...')
+    print('Saving predictions...')
     np.save(os.path.join(args.destination, 'predictions.npy'), Y_pred)
-    
-    # =============================================================================
-    # STATISTICS
-    # =============================================================================
-
-    df = store_predictions(Y_pred, y_val, X_val, args.destination)
-
-    store_confusion_matrix(df['label'], df['pred_mean'], args.destination)
-
-    store_summary_stats(df, args.destination)
-
-    class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
-    class_wise_df = pd.DataFrame(class_wise_accuracy).T
-    class_wise_df.to_csv(os.path.join(args.destination, 'class_wise_accuracy.csv'))
+    np.save(os.path.join(args.destination, 'labels.npy'), y_val)
+    np.save(os.path.join(args.destination, 'filenames.npy'), X_val)
+        
     print('Evaluation complete.')
     
