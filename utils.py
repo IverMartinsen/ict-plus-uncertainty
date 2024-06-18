@@ -279,12 +279,13 @@ def store_summary_stats(df, destination, num_models=10):
     summary = summary.T
     summary.to_csv(os.path.join(destination, 'summary.csv'))
 
-def plot_uncertainty(x, loss, c, x_label, quantile_percentage, title, filename, destination):
+def plot_uncertainty(x, loss, c, x_label, title, filename, destination):
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.scatter(x, loss, c=c)
     ax.set_ylabel('Loss')
     ax.set_xlabel(x_label)
-    ax.axvline(x=np.quantile(x, quantile_percentage), color='black', linestyle='--')
+    ax.axvline(x=np.quantile(x, 0.50), color='black', linestyle='--')
+    ax.axvline(x=np.quantile(x, 0.75), color='black', linestyle='--')
     ax.set_title(title, fontsize=10, fontweight='bold')
-    ax.legend(['correct', f'{quantile_percentage} quantile'])
+    ax.legend(['correct', '0.50 quantile', '0.75 quantile'])
     plt.savefig(os.path.join(destination, filename), bbox_inches='tight', dpi=300)
