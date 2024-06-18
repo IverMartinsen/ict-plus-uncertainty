@@ -68,10 +68,6 @@ if __name__ == '__main__':
     # =============================================================================
     x = df['predictive_variance']
     y = df['loss']
-    # compute number of wrong predictions below the 75th percentile
-    threshold = np.quantile(x, percentage)
-    score = np.array((df['label'] != df['pred_mean'])[x < threshold]).sum()
-    total_wrong = np.array(df['label'] != df['pred_mean']).sum()
 
     plot_uncertainty(
         x=x,
@@ -94,7 +90,7 @@ if __name__ == '__main__':
     ax.set_ylabel('Loss')
     ax.set_xlabel('1 - Percentage Agreement')
     ax.axvline(x=np.quantile(x, 0.50), color='black', linestyle='--')
-    ax.avline(x=np.quantile(x, 0.75), color='black', linestyle='-.')
+    ax.axvline(x=np.quantile(x, 0.75), color='black', linestyle='-.')
     ax.set_title(f'Percentage Agree vs Loss', fontsize=10, fontweight='bold')
     ax.legend(['correct', '0.50 quantile', '0.75 quantile'])
     plt.savefig(os.path.join(destination, 'percentage_agree.png'), bbox_inches='tight', dpi=300)
