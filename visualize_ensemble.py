@@ -136,8 +136,6 @@ if __name__ == '__main__':
         )    
     
     
-    make_calibration_plots(Y_pred.mean(axis=1), df['label'], destination, num_bins=11)
-    make_ordered_calibration_plot(Y_pred.mean(axis=1), df['label'], destination, num_bins=20)
 
     # =============================================================================
     # PLOT IMAGES
