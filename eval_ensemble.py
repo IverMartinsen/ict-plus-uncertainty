@@ -1,6 +1,7 @@
 import os
 import glob
 import json
+import argparse
 import tensorflow as tf
 import pandas as pd
 import numpy as np
@@ -15,57 +16,68 @@ from utils import (
     store_summary_stats,
 )
 from optimizer import StochasticGradientLangevinDynamics
+from schedule import PolynomialDecay
 
 
-# hyperparameters
-path_to_json = './models/ensemble.json'
-path_to_models = './models/'
-from_folder = False
-image_size = [224, 224]
-batch_size = 32
-destination = 'stats/ensemble_stats'
-path_to_val_data = './data/Man vs machine_Iver_cropped/'
+parser = argparse.ArgumentParser()
+parser.add_argument("--path_to_json", type=str, default='./models/ensemble.json')
+parser.add_argument("--path_to_models", type=str, default='./models/')
+parser.add_argument("--from_folder", type=bool, default=False)
+parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
+parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--destination", type=str, default='stats/ensemble_stats')
+parser.add_argument("--path_to_val_data", type=str, default='./data/Man vs machine_Iver_cropped/')
+args = parser.parse_args()
+
 
 if __name__ == '__main__':
 
-    # load the models
-    if from_folder:
-        models = glob.glob(path_to_models + '*.keras')
+    print('Loading models...')
+    if args.from_folder:
+        models = glob.glob(args.path_to_models + '*.keras')
         models.sort()
     else:
-        config = json.load(open(path_to_json, 'r'))
+        config = json.load(open(args.path_to_json, 'r'))
         keys = [k for k in config.keys() if 'model' in k]
         models = [str(config[k]) for k in keys]
-        models = [os.path.join(path_to_models, m) for m in models]
-        models = [tf.keras.models.load_model(m, custom_objects={'StochasticGradientLangevinDynamics': StochasticGradientLangevinDynamics}) for m in models]
+        models = [os.path.join(args.path_to_models, m) for m in models]
+    
+    custom_objects = {
+        'StochasticGradientLangevinDynamics': StochasticGradientLangevinDynamics,
+        'PolynomialDecay': PolynomialDecay,
+        }
+    models = [tf.keras.models.load_model(m, custom_objects=custom_objects) for m in models]
 
     assert len(models) > 0, 'No models found'
 
-    os.makedirs(destination, exist_ok=True)
+    os.makedirs(args.destination, exist_ok=True)
 
-    # load the validation data
-    X_val, y_val = load_data(path_to_val_data)
+    print('Loading validation data...')
+    X_val, y_val = load_data(args.path_to_val_data)
     assert len(X_val) > 0, 'No validation data found'
-    ds_val = make_dataset(X_val, y_val, image_size, batch_size, shuffle=False, seed=1)
+    ds_val = make_dataset(X_val, y_val, args.image_size, args.batch_size, shuffle=False, seed=1)
 
-    # get the predictions
+    print('Making predictions...')
     Y_pred = np.empty((len(y_val), len(models), len(lab_to_int)))
     for i, model in enumerate(models):
         predictions = model.predict(ds_val)
         Y_pred[:, i, :] = predictions
 
-    np.save(os.path.join(destination, 'predictions.npy'), Y_pred)
+    print('Saving predictions and statistics...')
+    np.save(os.path.join(args.destination, 'predictions.npy'), Y_pred)
     
     # =============================================================================
     # STATISTICS
     # =============================================================================
 
-    df = store_predictions(Y_pred, y_val, X_val, destination)
+    df = store_predictions(Y_pred, y_val, X_val, args.destination)
 
-    store_confusion_matrix(df['label'], df['pred_mean'], destination)
+    store_confusion_matrix(df['label'], df['pred_mean'], args.destination)
 
-    store_summary_stats(df, destination)
+    store_summary_stats(df, args.destination)
 
     class_wise_accuracy = classification_report(df['label'], df['pred_mean'], target_names=list(lab_to_long.values()), output_dict=True)
     class_wise_df = pd.DataFrame(class_wise_accuracy).T
-    class_wise_df.to_csv(os.path.join(destination, 'class_wise_accuracy.csv'))
+    class_wise_df.to_csv(os.path.join(args.destination, 'class_wise_accuracy.csv'))
+    print('Evaluation complete.')
+    
