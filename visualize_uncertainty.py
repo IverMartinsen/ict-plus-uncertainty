@@ -8,7 +8,9 @@ from utils import (
     plot_images, 
     make_calibration_plots, 
     make_ordered_calibration_plot,
-    plot_uncertainty
+    plot_uncertainty,
+    int_to_lab,
+    lab_to_long,
 )
 
 destination = 'stats/ensemble_stats'#'./ensemble_stats/'
@@ -143,3 +145,14 @@ if __name__ == '__main__':
     #plot the 25 most certain images
     idx = np.argsort(df['total_variance'])[:25]
     plot_images(df.iloc[idx], 5, 'most_certain.png', image_size=image_size, destination=destination)
+
+    # =============================================================================
+    # BOX PLOTS
+    # =============================================================================
+    fig, ax = plt.subplots(figsize=(10, 5))
+    df['Group'] = df['label'].apply(lambda x: int_to_lab[x])
+    df.boxplot(column='total_variance', by='Group', ax=ax)
+    ax.set_title('')
+    plt.suptitle('')
+    plt.savefig(os.path.join(destination, 'total_variance_boxplot.png'), bbox_inches='tight', dpi=300)
+    
