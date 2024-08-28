@@ -11,6 +11,9 @@ swag/
 sgld_jobfile.yml
 stats/
 models/
+results/
+jobfile_swag.yml
+jobfile_sgld.yml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
