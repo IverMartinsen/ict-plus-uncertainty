@@ -1,37 +1,26 @@
 import os
 import random
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tqdm import tqdm
-from sklearn.metrics import classification_report
-from utils import (
-    lab_to_int, 
-    lab_to_long, 
-    make_dataset, 
-    load_data, 
-    compute_predictive_variance, 
-    plot_images, 
-    store_predictions, 
-    store_confusion_matrix, 
-    store_summary_stats,
-    plot_uncertainty,
-    make_calibration_plots,
-    make_ordered_calibration_plot,
-    )
+from utils import lab_to_int, make_dataset, load_data
 from optimizer import StochasticGradientLangevinDynamics
+from schedule import PolynomialDecay
 
 # hyperparameters
-path_to_model = './ensemble/ensemble/20240606_122403.keras'
+path_to_model = './models/20240819_144329.keras'
 destination = './stats/dropout_stats/'
 image_size = [224, 224]
 batch_size = 32
-num_samples = 10
+num_samples = 30
 
 os.makedirs(destination, exist_ok=True)
 
 # load the model
-model = tf.keras.models.load_model(path_to_model, custom_objects={'pSGLangevinDynamics': StochasticGradientLangevinDynamics})
+model = tf.keras.models.load_model(path_to_model, custom_objects={
+    'StochasticGradientLangevinDynamics': StochasticGradientLangevinDynamics,
+    'PolynomialDecay': PolynomialDecay,
+    })
 base_model = model.layers[-2]
 classification_head = model.layers[-1]
 
@@ -47,9 +36,8 @@ def dropout_call(x):
     x = model.layers[-1](x, training=True)
     return x
 
-
 # load the validation data
-path_to_val_data = './data/Training_Dataset_Cropped_Split/val/'
+path_to_val_data = './data/Man vs machine_Iver_cropped/'
 X_val, y_val = load_data(path_to_val_data)
 ds_val = make_dataset(X_val, y_val, image_size, batch_size, seed=1)
 
@@ -67,3 +55,6 @@ for i in tqdm(range(num_samples)):
     predictions = np.concatenate(predictions, axis=0)
     Y_pred[:, i, :] = predictions
 
+np.save(os.path.join(destination, 'predictions.npy'), Y_pred)
+np.save(os.path.join(destination, 'filenames.npy'), X_val)
+np.save(os.path.join(destination, 'labels.npy'), y_val)
