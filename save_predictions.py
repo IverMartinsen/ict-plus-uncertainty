@@ -13,19 +13,18 @@ from utils import (
     load_data, 
     store_predictions,
     store_confusion_matrix,
-    store_summary_stats,
 )
 from optimizer import StochasticGradientLangevinDynamics
 from schedule import PolynomialDecay
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--path_to_json", type=str, default='./models/ensemble.json')
-parser.add_argument("--path_to_models", type=str, default='./models/')
-parser.add_argument("--from_folder", type=bool, default=False)
+parser.add_argument("--path_to_json", type=str, default='./models/single_model.json')
+parser.add_argument("--path_to_models", type=str, default='./models/20240906_084823/')
+parser.add_argument("--from_folder", type=bool, default=True)
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
 parser.add_argument("--batch_size", type=int, default=32)
-parser.add_argument("--destination", type=str, default='stats/ensemble_stats')
+parser.add_argument("--destination", type=str, default='results/sgld_5e5_results/')
 parser.add_argument("--path_to_val_data", type=str, default='./data/Man vs machine_Iver_cropped/')
 args = parser.parse_args()
 
@@ -47,6 +46,7 @@ if __name__ == '__main__':
         'PolynomialDecay': PolynomialDecay,
         }
     models = [tf.keras.models.load_model(m, custom_objects=custom_objects) for m in models]
+    
 
     assert len(models) > 0, 'No models found'
 
