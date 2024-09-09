@@ -37,6 +37,7 @@ parser.add_argument("--message", type=str, default="")
 parser.add_argument("--swag", type=bool, default=False)
 parser.add_argument("--sgld", type=bool, default=False)
 parser.add_argument("--burnin", type=int, default=1e8)
+parser.add_argument("--model_variance", type=bool, default=False)
 args = parser.parse_args()
 
 
@@ -88,10 +89,25 @@ if __name__ == "__main__":
         if args.apply_contrast:
             layers.append(tf.keras.layers.RandomContrast(0.4, seed=args.random_seed))
         
-        layers.append(base_model)
-        layers.append(tf.keras.layers.Dense(4, activation='softmax'))
         
-        model = tf.keras.Sequential(layers)
+        if not args.model_variance:
+            layers.append(base_model)
+            layers.append(tf.keras.layers.Dense(4, activation='softmax'))
+            model = tf.keras.Sequential(layers)
+        else:        
+            augmentation = tf.keras.Sequential(layers)
+            # create a functional model
+            Input = tf.keras.layers.Input(shape=(*args.image_size, 3))
+            x = Input
+            x = augmentation(x)
+            x = base_model(x)
+            z = tf.keras.layers.Dense(4, activation='linear')(x) # logits
+            v = tf.keras.layers.Dense(1, activation='softplus')(x) # variance
+            # sample from the distribution
+            sample_layer = tf.keras.layers.Lambda(lambda x: x[0] + tf.random.normal(tf.shape(x[0])) * tf.sqrt(x[1]))
+            x = sample_layer([z, v])
+            x = tf.keras.layers.Activation('softmax')(x)
+            model = tf.keras.Model(inputs=Input, outputs=x)
         
         lr_schedule = PolynomialDecay(
             initial_learning_rate=args.learning_rate_start,
@@ -133,10 +149,11 @@ if __name__ == "__main__":
             save_best_only=False,
             save_weights_only=False,
         )
+        callbacks.append(model_checkpoint)
         sample_size = len(X_train)
         steps_per_epoch = np.ceil(sample_size / args.batch_size).astype(int)
-        burnin = steps_per_epoch*100 # number of training steps before starting to add gradient noise
-        model.optimizer._burnin = tf.convert_to_tensor(0, name='burnin')
+        burnin = steps_per_epoch*args.epochs*0.9 # number of training steps before starting to add gradient noise
+        model.optimizer._burnin = tf.convert_to_tensor(burnin, name='burnin')
 
     json.dump(vars(args), open(os.path.join(args.save_path, f'{timestr}.json'), 'w'))
 
