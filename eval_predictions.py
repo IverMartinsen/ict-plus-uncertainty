@@ -54,7 +54,7 @@ if __name__ == '__main__':
         kappa = np.triu(kappa, k=1)
 
         summary['kappa'] = kappa.sum() / np.count_nonzero(kappa)
-        summary['loss'] = df['loss'].mean()
+        summary['loss_mean'] = df['loss_mean'].mean()
         
         x = df[args.key_uncertainty]
         z = df['label'] == df[args.key_pred]
