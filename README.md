@@ -23,5 +23,5 @@ Workflow for producing stats and plots:
 - run ```visualize_uncertainty.py``` to produce uncertainty plots
 
 Other scripts:
-- ```compute_correlations.py``` to compute correlations between predictions.
-- ```visualize_augmentations.py``` to visualize data augmentations used.
+- ```compute_correlations.py``` to compute correlations between predictions
+- ```visualize_augmentations.py``` to visualize data augmentations used
