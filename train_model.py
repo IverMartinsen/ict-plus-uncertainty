@@ -8,9 +8,9 @@ import tensorflow as tf
 import numpy as np
 from datetime import datetime
 from utils import make_dataset, load_data
-from swag_utils import SWAGDiagonalCallback
-from optimizer import StochasticGradientLangevinDynamics
-from schedule import PolynomialDecay
+from utils.swag_utils import SWAGDiagonalCallback
+from utils.optimizer import StochasticGradientLangevinDynamics
+from utils.schedule import PolynomialDecay
 
 print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
@@ -26,11 +26,11 @@ parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
 parser.add_argument("--project", type=str, default="ict-plus-uncertainty")
 parser.add_argument("--save_path", type=str, default="./models/")
 parser.add_argument("--apply_flip", type=bool, default=True)
-parser.add_argument("--apply_translation", type=bool, default=False)
+parser.add_argument("--apply_translation", type=bool, default=True)
 parser.add_argument("--apply_rotation", type=bool, default=True)
 parser.add_argument("--apply_zoom", type=bool, default=True)
 parser.add_argument("--apply_brightness", type=bool, default=False)
-parser.add_argument("--apply_contrast", type=bool, default=False)
+parser.add_argument("--apply_contrast", type=bool, default=True)
 parser.add_argument("--random_seed", type=int, default=1, help="Random seed for reproducibility")
 parser.add_argument("--path_to_weights", type=str, default=None)
 parser.add_argument("--message", type=str, default="")
