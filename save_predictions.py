@@ -2,29 +2,18 @@ import os
 import glob
 import json
 import argparse
-import tensorflow as tf
-import pandas as pd
 import numpy as np
-from sklearn.metrics import classification_report
-from utils import (
-    lab_to_int, 
-    lab_to_long, 
-    make_dataset, 
-    load_data, 
-    store_predictions,
-    store_confusion_matrix,
-)
-from optimizer import StochasticGradientLangevinDynamics
-from schedule import PolynomialDecay
+import tensorflow as tf
+from utils.utils import lab_to_int, make_dataset, load_data
+from utils.optimizer import StochasticGradientLangevinDynamics
+from utils.schedule import PolynomialDecay
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--path_to_json", type=str, default='./models/single_model.json')
-parser.add_argument("--path_to_models", type=str, default='./models/20240906_084823/')
-parser.add_argument("--from_folder", type=bool, default=True)
+parser.add_argument("--path", type=str, default='./models/single_model.json')
 parser.add_argument("--image_size", type=int, nargs="+", default=[224, 224])
 parser.add_argument("--batch_size", type=int, default=32)
-parser.add_argument("--destination", type=str, default='results/sgld_5e5_results/')
+parser.add_argument("--destination", type=str, default='./results/ensemble_results/')
 parser.add_argument("--path_to_val_data", type=str, default='./data/Man vs machine_Iver_cropped/')
 args = parser.parse_args()
 
@@ -32,14 +21,16 @@ args = parser.parse_args()
 if __name__ == '__main__':
 
     print('Loading models...')
-    if args.from_folder:
-        models = glob.glob(args.path_to_models + '*.keras')
-        models.sort()
-    else:
-        config = json.load(open(args.path_to_json, 'r'))
+    if args.path.endswith('.json'):
+        config = json.load(open(args.path, 'r'))
         keys = [k for k in config.keys() if 'model' in k]
         models = [str(config[k]) for k in keys]
-        models = [os.path.join(args.path_to_models, m) for m in models]
+        models = [os.path.join(args.path, m) for m in models]
+    elif args.path.endswith('.keras'):
+        models = [args.path]
+    else:
+        models = glob.glob(args.path + '*.keras')
+        models.sort()
     
     custom_objects = {
         'StochasticGradientLangevinDynamics': StochasticGradientLangevinDynamics,
