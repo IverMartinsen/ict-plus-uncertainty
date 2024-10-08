@@ -1,10 +1,10 @@
 import os
 import numpy as np
 import tensorflow as tf
-from utils import make_dataset, load_data
-from optimizer import StochasticGradientLangevinDynamics
-from schedule import PolynomialDecay
 from argparse import ArgumentParser
+from utils.utils import make_dataset, load_data
+from utils.optimizer import StochasticGradientLangevinDynamics
+from utils.schedule import PolynomialDecay
 
 parser = ArgumentParser()
 parser.add_argument("--destination", type=str, default='./results/tta_results_s1/')
