@@ -51,26 +51,6 @@ def compute_predictive_variance(Y_pred):
     # total uncertainty
     return ep_cov, al_cov
 
-def plot_images(group, cols, plotname, destination, image_size=[224, 224]):
-    """
-    Plot the images from the group
-    """
-    _, axs = plt.subplots(cols, cols, figsize=(10, 10))
-
-    for i, ax in enumerate(axs.flatten()):
-        try:
-            filename = group.iloc[i, 0]
-            label = lab_to_long[int_to_lab[group['label'].iloc[i]]]
-            pred = lab_to_long[int_to_lab[group['pred_mode'].iloc[i]]]
-            ax.imshow(Image.open(filename).resize(image_size))
-            ax.set_title(f'Label: {label}\nPred: {pred}\nFile: {os.path.basename(filename)}', fontsize=6, fontweight='bold')
-        except IndexError:
-            pass
-        ax.axis('off')
-    plt.subplots_adjust(hspace=0.3)
-    plt.savefig(os.path.join(destination, plotname), bbox_inches='tight', dpi=300)
-    plt.close()
-
 
 def store_predictions(y_pred, y, filenames, destination, y_var=None, y_logits=None):
 
