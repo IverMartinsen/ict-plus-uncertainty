@@ -16,6 +16,7 @@ def compute_calibration_stats(y_pred, y_true, num_bins=9):
     bins = np.linspace(0, 1, num_bins + 1)
     low = bins[:-1]
     upp = bins[1:]
+    upp[-1] += 1e-8
     
     p_all = [] # average confidence per bin
     f_all = [] # frequency of positive class per bin
@@ -65,7 +66,7 @@ def compute_calibration_stats(y_pred, y_true, num_bins=9):
         "total_error": error
     }
 
-def make_calibration_plots(y_pred, y_true, destination, num_bins=9):
+def make_calibration_plots(y_pred, y_true, destination, num_bins=9, fname=None):
     """
     Make calibration plots for a set of predictions. Save the plots to the destination folder.
     Args:
@@ -98,8 +99,11 @@ def make_calibration_plots(y_pred, y_true, destination, num_bins=9):
     plt.step(bins, np.concatenate([[0], preds]), where="pre", color="k", linestyle="--")
     plt.xlabel("Predicted probability")
     plt.ylabel("Observed frequency")
-    plt.title(f"Calibration error: {error:.3f}")
-    plt.savefig(os.path.join(destination, f"calibration_{num_bins}_bins.png"), dpi=300)
+    #plt.title(f"Calibration error: {error:.3f}")
+    if fname is not None:
+        plt.savefig(os.path.join(destination, fname), dpi=300)
+    else:
+        plt.savefig(os.path.join(destination, f"calibration_{num_bins}_bins.png"), dpi=300)
     plt.close()
 
     #plt.figure(figsize=(10, 5))
@@ -112,7 +116,7 @@ def make_calibration_plots(y_pred, y_true, destination, num_bins=9):
     #plt.savefig(os.path.join(destination, "calibration2.png"), dpi=300)
     return error
 
-def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20):
+def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20, fname=None):
     """
     Make a calibration plot with the bins ordered by frequency
     """
@@ -154,9 +158,12 @@ def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20):
     plt.ylim(-0.3, 0.3)
     plt.xlabel('Confidence')
     plt.ylabel('Confidence - Accuracy')
-    plt.title(f'Reliability Diagram\nExpected Calibration Error: {error:.4f}')
+    #plt.title(f'Reliability Diagram\nExpected Calibration Error: {error:.4f}')
     plt.grid()
-    plt.savefig(os.path.join(destination, f'reliability_plot_{num_bins}_bins.png'), bbox_inches='tight', dpi=300)
+    if fname is not None:
+        plt.savefig(os.path.join(destination, fname), bbox_inches='tight', dpi=300)
+    else:
+        plt.savefig(os.path.join(destination, f'reliability_plot_{num_bins}_bins.png'), bbox_inches='tight', dpi=300)
     plt.close()
 
     return error
