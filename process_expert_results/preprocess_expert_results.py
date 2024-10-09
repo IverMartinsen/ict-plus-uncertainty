@@ -17,86 +17,10 @@ path_to_files = "/Users/ima029/Desktop/IKT+ Uncertainty/Repository/data/Man vs m
 
 os.makedirs(destination, exist_ok=True)
 
-# import csv from Steffen
-expert_results = "./data/Expert results/all_questionnaire_results_with error estimate_separated_plot2.xls"
-expert_results = pd.read_excel(expert_results, sheet_name=None)
 
-experts = ['Tine', 'Marit-Solveig', 'Kasia', 'Morten', 'Steffen', 'Eirik ']
+df = pd.read_csv(os.path.join(destination, 'predictions.csv'))
 
-experts = experts[:4] # exclude Eirik and Steffen
-
-# create new dataframe with condensed information
-df = pd.DataFrame()
-df['filename'] = expert_results[experts[0]]['image'].iloc[:-1]
-df['label'] = expert_results[experts[0]]['true class'].iloc[:-1].apply(lambda x: lab_to_int[x])
-
-for expert in experts:
-    tmp = expert_results[expert]
-    tmp = tmp.set_index('image').loc[df['filename']].reset_index()
-    print(tmp['image'].iloc[:10])
-    y_pred = tmp['response'].apply(lambda x: lab_to_int[x])
-    df[expert] = y_pred
-    try:
-        df[expert + '_uncertainty'] = tmp['certainty']
-    except KeyError:
-        df[expert + '_uncertainty'] = tmp['certainity']
-    df[expert + '_time'] = tmp['time']
-
-t = np.zeros(len(df))
-for expert in experts:
-    time = df[expert + '_time']
-    # normalize time
-    time = time - np.mean(time)
-    time = time / np.std(time)
-    t += time
-df['time_standard'] = t / len(experts)
-
-
-df['agree'] = np.prod(df.iloc[:, 2:6] == df.iloc[:, 2].values[:, None], axis=1).astype(bool) # check if all models agree
-df['percentage_agree'] = df[experts].apply(lambda x: x.value_counts().max() / x.value_counts().sum(), axis=1)
-df['unique_preds'] = df[experts].apply(lambda x: len(np.unique(x)), axis=1)
-df['confidence'] = (df[[expert + '_uncertainty' for expert in experts]].mean(axis=1)) / 100
-df['uncertainty'] = 1 - (df['percentage_agree'])*(df['confidence'])
-df['pred_mode'] = df[experts].mode(axis=1)[0] # majority vote
-df['rank'] = df['uncertainty'].rank()
-# handle special cases
-idx = df[(df['percentage_agree'] == 0.5) & (df['unique_preds'] == 2)].index
-
-for i in idx:
-    for expert in experts:
-        print(expert, df.loc[i, expert], df.loc[i, expert + '_uncertainty'])
-    print('=====================')
-
-preds = [0, 0, 1, 0, 3, 1, 2, 2]
-
-df.loc[idx, 'pred_mode'] = preds
-
-pred_weighted = np.zeros((len(df), 4))
-for expert in experts:
-    pred_weighted[np.arange(len(df)), df[expert]] += df[expert + '_uncertainty'] / 100
-pred_weighted /= np.sum(pred_weighted, axis=1)[:, None]
-df['pred_weighted'] = np.argmax(pred_weighted, axis=1)
-
-# handle special cases
-idx = np.where(np.sort(pred_weighted, axis=1)[:, -2] == np.sort(pred_weighted, axis=1)[:, -1])[0]
-df.iloc[21]['pred_weighted'] = 1
-df.iloc[55]['pred_weighted'] = 0
-
-df['conf_mean'] = pred_weighted.max(axis=1)
-
-
-mode_weights = np.zeros(len(df))
-for expert in experts:
-    idx = np.where(df[expert] == df['pred_weighted'])[0]
-    mode_weights[idx] += df[expert + '_uncertainty'][idx] / 100
-    idx = np.where((df[expert] != df['pred_weighted']) & (df['unique_preds'] == 2))[0]
-    mode_weights[idx] -= df[expert + '_uncertainty'][idx] / 100
-    idx = np.where((df[expert] != df['pred_weighted']) & (df['unique_preds'] == 3))[0]
-    mode_weights[idx] -= df[expert + '_uncertainty'][idx] / 200
-
-df['weighted_confidence'] = mode_weights / len(experts)
-
-df.to_csv(os.path.join(destination, 'predictions.csv'))
+experts = ['Tine', 'Marit-Solveig', 'Kasia', 'Morten', 'Steffen', 'Eirik '][:4] # exclude Eirik and Steffen
 
 # ==============================
 # PLOT TIME DISTRIBUTION
