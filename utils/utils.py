@@ -98,6 +98,7 @@ def store_predictions(y_pred, y, filenames, destination, y_var=None, y_logits=No
     df['var_mean'] = var[np.arange(len(y)), df['pred_mean']]
     df['iqr_mean'] = iqr[np.arange(len(y)), df['pred_mean']]
     df['post_pred_var_mean'] = cov[np.arange(n), np.array(df['pred_mean']).flatten()]
+    df['entropy_mean'] = -np.sum(y_pred.mean(axis=1) * np.log(y_pred.mean(axis=1)), axis=1)
     # Mode prediction
     df['pred_mode'] = df[keys].mode(axis=1)[0] # majority vote
     # Median prediction
@@ -109,6 +110,7 @@ def store_predictions(y_pred, y, filenames, destination, y_var=None, y_logits=No
     df['var_median'] = var[np.arange(len(y)), df['pred_median']]
     df['iqr_median'] = iqr[np.arange(len(y)), df['pred_median']]
     df['post_pred_var_median'] = cov[np.arange(n), np.array(df['pred_median']).flatten()]
+    df['entropy_median'] = -np.sum(conf_median * np.log(conf_median), axis=1)
     # Epistemic uncertainty
     df['tot_epi_var'] = ep_cov[:, np.arange(4), np.arange(4)].sum(axis=1)
     df['tot_ale_var'] = al_cov[:, np.arange(4), np.arange(4)].sum(axis=1)
@@ -120,6 +122,19 @@ def store_predictions(y_pred, y, filenames, destination, y_var=None, y_logits=No
     else:
         y_logits = np.log(y_pred)
         df['log_var_mean'] = y_logits.var(axis=1)[np.arange(len(y)), df['pred_mean']]
+    
+        weighted_preds = np.zeros(len(df['label']))
+    df['unique_preds'] = np.unique(y_pred.argmax(axis=2), axis=1).shape[1]
+    for i in range(y_pred.shape[1]):
+        pred_i = y_pred[:, i, :].argmax(axis=1)
+        idx = np.where(pred_i == df['pred_mean'])[0]
+        weighted_preds[idx] += y_pred[idx, i, :].max(axis=1)
+        for j in range(2, 10):
+            idx = np.where((pred_i != df['pred_mean']) & (df['unique_preds'] == j))[0]
+            weighted_preds[idx] -= y_pred[idx, i, :].max(axis=1) / (j - 1)
+
+    df['weighted_confidence'] = weighted_preds / y_pred.shape[1]
+    
     df.to_csv(os.path.join(destination, 'predictions.csv'), index=False)
     
     return df
@@ -130,17 +145,4 @@ def store_confusion_matrix(labels, predictions, destination):
     fig, ax = plt.subplots(figsize=(10, 10))
     disp.plot(ax=ax)
     plt.savefig(os.path.join(destination, 'confusion_matrix.png'), bbox_inches='tight', dpi=300)
-    plt.close()
-
-
-def plot_uncertainty(x, loss, c, x_label, title, filename, destination, q_val):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.scatter(x, loss, c=c)
-    ax.set_ylabel('Loss')
-    ax.set_xlabel(x_label)
-    ax.axvline(x=np.quantile(x, 0.50), color='black', linestyle='--')
-    ax.axvline(x=np.quantile(x, q_val), color='black', linestyle='--')
-    ax.set_title(title, fontsize=10, fontweight='bold')
-    ax.legend(['correct', '0.50 quantile', f'{q_val} quantile'])
-    plt.savefig(os.path.join(destination, filename), bbox_inches='tight', dpi=300)
     plt.close()
