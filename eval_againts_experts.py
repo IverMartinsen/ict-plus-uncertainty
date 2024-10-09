@@ -1,45 +1,42 @@
+# Produce expert_summary.csv file
 import os
+import argparse
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 from sklearn.metrics import cohen_kappa_score
 
-destination = 'results/sgld_5e5_results/'
-path_to_df = os.path.join(destination, 'predictions.csv')
-path_to_expert = './results/expert_results/predictions.csv'
-image_size = [224, 224]
+parser = argparse.ArgumentParser()
+parser.add_argument("--destination", type=str, default='./results/ensemble_results/')
+parser.add_argument("--key", type=str, default='mean')
+args = parser.parse_args()
 
-df_expert = pd.read_csv(path_to_expert)
-df_model = pd.read_csv(path_to_df)
+df_expert = pd.read_csv('./results/expert_results/predictions.csv')
+df_model = pd.read_csv(os.path.join(args.destination, 'predictions.csv'))
 df_model['filename'] = df_model['filename'].apply(lambda x: x.split('/')[-1])
 df_model = df_model.set_index('filename').loc[df_expert['filename']].reset_index()
 
-p = 0
-# hypergeometric cdf
-from scipy.stats import hypergeom
 
-1 - hypergeom.cdf(6, 260, 32, 32)
+key_pred, key_uncertainty = {'mean': ('pred_mean', 'conf_mean'), 'median': ('pred_median', 'conf_median')}[args.key]
 
-key_pred = 'pred_mean'
-key = 'conf_mean'
 
 # compute kappa score
-kappa = cohen_kappa_score(df_expert['pred_mode'], df_model[key_pred])
-spearman_r, spearman_p = spearmanr(df_expert['mode_weights'], df_model[key], alternative='two-sided')
+kappa = cohen_kappa_score(df_expert['pred_weighted'], df_model[key_pred])
+spearman_r, spearman_p = spearmanr(df_expert['weighted_confidence'], df_model[key_uncertainty], alternative='two-sided')
 certain_intersection = np.intersect1d(
-    df_expert['mode_weights'].sort_values().index[-133:], 
-    df_model[key].sort_values().index[-133:]
+    df_expert['weighted_confidence'].sort_values().index[-133:], 
+    df_model[key_uncertainty].sort_values().index[-133:]
     ).shape[0]
 uncertain_intersection = np.intersect1d(
-    df_expert['mode_weights'].sort_values().index[:32],
-    df_model[key].sort_values().index[:32]
+    df_expert['weighted_confidence'].sort_values().index[:32],
+    df_model[key_uncertainty].sort_values().index[:32]
     ).shape[0]
 mistakes_intersection = np.intersect1d(
-    df_expert[df_expert['pred_mode'] != df_expert['label']].index,
+    df_expert[df_expert['pred_weighted'] != df_expert['label']].index,
     df_model[df_model[key_pred] != df_model['label']].index
     ).shape[0]
 easy_mistakes_intersection = np.intersect1d(
-    df_expert[(df_expert['mode_weights'] == 1.0)].index,
+    df_expert[(df_expert['weighted_confidence'] == 1.0)].index,
     df_model[(df_model[key_pred] != df_model['label'])].index
 ).shape[0]
 
@@ -55,4 +52,4 @@ summary = {
 
 summary = pd.DataFrame(summary, index=['values'])
 summary = summary.T
-summary.to_csv(os.path.join(destination, 'expert_summary.csv'))
+summary.to_csv(os.path.join(args.destination, 'expert_summary.csv'))
