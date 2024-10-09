@@ -1,11 +1,15 @@
 import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
 from sklearn.metrics import cohen_kappa_score
 from scipy.stats import gaussian_kde, spearmanr
-from utils.utils import lab_to_int, int_to_lab, lab_to_long
+from utils.utils import lab_to_int, int_to_lab, lab_to_long, store_confusion_matrix
 
 
 destination = "/Users/ima029/Desktop/IKT+ Uncertainty/Repository/results/expert_results/"
@@ -34,7 +38,7 @@ for expert in experts:
     df[expert] = y_pred
     try:
         df[expert + '_uncertainty'] = tmp['certainty']
-    except expertError:
+    except KeyError:
         df[expert + '_uncertainty'] = tmp['certainity']
     df[expert + '_time'] = tmp['time']
 
@@ -70,12 +74,16 @@ df.loc[idx, 'pred_mode'] = preds
 pred_weighted = np.zeros((len(df), 4))
 for expert in experts:
     pred_weighted[np.arange(len(df)), df[expert]] += df[expert + '_uncertainty'] / 100
+pred_weighted /= np.sum(pred_weighted, axis=1)[:, None]
 df['pred_weighted'] = np.argmax(pred_weighted, axis=1)
 
 # handle special cases
 idx = np.where(np.sort(pred_weighted, axis=1)[:, -2] == np.sort(pred_weighted, axis=1)[:, -1])[0]
 df.iloc[21]['pred_weighted'] = 1
 df.iloc[55]['pred_weighted'] = 0
+
+df['conf_mean'] = pred_weighted.max(axis=1)
+
 
 mode_weights = np.zeros(len(df))
 for expert in experts:
@@ -173,7 +181,7 @@ plt.savefig(os.path.join(destination, 'agreement_distribution.pdf'), dpi=300)
 # ==============================
 # PLOT UNCERTAINT PREDICTIONS
 # ==============================
-df_ = df[(df['mode_weights'] < 0.5625)]
+df_ = df[(df['weighted_confidence'] < 0.5625)]
 df_.to_csv(os.path.join(destination, 'disagreement.csv'))
 
 # ==============================
@@ -192,10 +200,25 @@ plt.title('Weighted confidence distribution')
 plt.savefig(os.path.join(destination, 'weighted_confidence_distribution.pdf'), dpi=300)
 
 # ==============================
+# PLOT MEAN CONFIDENCE DISTRIBUTION
+# ==============================
+plt.figure(figsize=(10, 5))
+steps = 0.03
+bins = np.arange(np.min(df['conf_mean']), np.max(df['conf_mean']) + steps, steps)
+plt.hist(df['conf_mean'][df['label'] == df['pred_weighted']], bins=bins, alpha=1.0, label='Correct prediction', density=True)
+plt.hist(df['conf_mean'][df['label'] != df['pred_weighted']], bins=bins, alpha=0.4, label='Incorrect prediction', density=True)
+plt.legend()
+plt.xlabel('Mean confidence')
+plt.ylabel('Density')
+plt.title('Mean confidence distribution')
+plt.savefig(os.path.join(destination, 'mean_confidence_distribution.pdf'), dpi=300)
+plt.close()
+
+# ==============================
 # PLOT TIME VS MODE WEIGHT
 # ==============================
 plt.figure(figsize=(10, 5))
-plt.scatter(df['mode_weights'], df['time_standard'], c=(df['label'] == df['pred_mode']), s=10)
+plt.scatter(df['weighted_confidence'], df['time_standard'], c=(df['label'] == df['pred_mode']), s=10)
 plt.xlabel('Mode weight')
 plt.ylabel('Time (s)')
 plt.title('Time vs mode weight')
@@ -218,6 +241,27 @@ for i, ax_ in enumerate(ax.flatten()):
     ax_.axis('off')
 plt.subplots_adjust(hspace=0.3)
 plt.savefig(os.path.join(destination, 'disagreement_images.pdf'), dpi=300, bbox_inches='tight')
+
+# ==============================
+# SCATTER PLOT OF UNCERTAINTY
+# ==============================
+
+for i, expert1 in enumerate(experts):
+    for j, expert2 in enumerate(experts):
+        if expert1 == expert2:
+            continue
+        plt.figure(figsize=(10, 5))
+        
+        x = df[expert1 + '_uncertainty'] + np.random.normal(0, 1, len(df))
+        y = df[expert2 + '_uncertainty'] + np.random.normal(0, 1, len(df))
+        plt.scatter(x, y, s=10)
+        plt.xlabel(f'{expert1} uncertainty')
+        plt.ylabel(f'{expert2} uncertainty')
+        plt.title(f'{expert1} vs {expert2}')
+        plt.savefig(os.path.join(destination, f'{expert1}_vs_{expert2}.pdf'), dpi=300)
+        plt.close()
+    
+
 
 # ==============================
 # SUMMARY STATISTICS
@@ -250,3 +294,5 @@ correlation = np.triu(correlation, k=1)
 summary['rank_correlation'] = correlation.sum() / np.count_nonzero(correlation)
 
 summary.T.to_csv(os.path.join(destination, 'summary.csv'))
+
+store_confusion_matrix(df['label'], df['pred_weighted'], destination)
