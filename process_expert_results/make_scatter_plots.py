@@ -11,20 +11,9 @@ destination = "./results/expert_results/"
 
 os.makedirs(destination, exist_ok=True)
 
-
 df = pd.read_csv(os.path.join(destination, 'predictions.csv'))
 
 experts = ['Tine', 'Marit-Solveig', 'Kasia', 'Morten', 'Steffen', 'Eirik '][:4] # exclude Eirik and Steffen
-
-# ==============================
-# PLOT TIME VS MODE WEIGHT
-# ==============================
-plt.figure(figsize=(10, 5))
-plt.scatter(df['weighted_confidence'], df['time_standard'], c=(df['label'] == df['pred_mode']), s=10)
-plt.xlabel('Mode weight')
-plt.ylabel('Time (s)')
-plt.title('Time vs mode weight')
-plt.savefig(os.path.join(destination, 'time_vs_mode_weight.pdf'), dpi=300)
 
 # ==============================
 # SCATTER PLOT OF UNCERTAINTY
