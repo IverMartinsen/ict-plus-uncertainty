@@ -17,7 +17,7 @@ from utils.utils import (
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--destination", type=str, default='./results/ensemble_results/')
-parser.add_argument("--key", type=str, default='conf_mean')
+parser.add_argument("--key", type=str, default='mean')
 args = parser.parse_args()
 
 
