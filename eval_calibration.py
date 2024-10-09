@@ -2,10 +2,10 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
-from calibration import make_calibration_plots, make_ordered_calibration_plot
+from utils.calibration import make_calibration_plots, make_ordered_calibration_plot
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--destination", type=str, default='./results/tta_results_s1/')
+parser.add_argument("--destination", type=str, default='./results/ensemble_results/')
 parser.add_argument("--key", type=str, default='mean')
 args = parser.parse_args()
 
@@ -28,6 +28,16 @@ if __name__ == '__main__':
         cal_error.append(e)
         e = make_ordered_calibration_plot(x, df['label'], args.destination, num_bins=b)
         rel_error.append(e)
+        # also make plot across all models
+        x = []
+        y = []
+        for i in range(Y_pred.shape[1]):
+            x.append(Y_pred[:, i, :])
+            y.append(df['label'])
+        x = np.concatenate(x, axis=0)
+        y = np.concatenate(y)
+        e = make_calibration_plots(x, y, args.destination, num_bins=b, fname=f'calibration_{b}_bins_all_models.png')
+        e = make_ordered_calibration_plot(x, y, args.destination, num_bins=b, fname=f'reliability_{b}_bins_all_models.png')
 
     error_summary = pd.DataFrame({
         'calibration_error': np.mean(cal_error),
