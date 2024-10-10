@@ -14,6 +14,7 @@ models/
 results/
 jobfile_swag.yml
 jobfile_sgld.yml
+jobfile_save_predictions.yml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
