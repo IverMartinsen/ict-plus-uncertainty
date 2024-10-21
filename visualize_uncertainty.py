@@ -123,3 +123,22 @@ if __name__ == '__main__':
         plt.savefig(os.path.join(args.destination, f'{uncertainty_metric}_boxplot.png'), bbox_inches='tight', dpi=300)
         plt.close()
         
+        # plot num mistakes vs uncertainty
+        num_mistakes = np.zeros(len(df))
+        for i in range(10):
+            num_mistakes += (df[f'model_{i}'].values != df['label']).astype(int)
+        
+        markers = ['o', 'x', 's', '>']
+        
+        x = num_mistakes + np.random.normal(0, 0.1, len(df))
+        y = df[uncertainty_metric] + np.random.normal(0, 0.01, len(df))
+        
+        plt.figure(figsize=(10, 5))
+        for i, label in enumerate(df['label'].unique()):
+            idx = df['label'] == label
+            plt.scatter(x[idx], y[idx], s=15, label=lab_to_long[int_to_lab[label]], marker=markers[i])
+        plt.xlabel('Number of mistakes')
+        plt.ylabel(x_labels[uncertainty_metric])
+        plt.legend()
+        plt.savefig(os.path.join(args.destination, f'num_mistakes_vs_{uncertainty_metric}.pdf'), dpi=300)
+        plt.close()
