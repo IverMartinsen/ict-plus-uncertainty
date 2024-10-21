@@ -27,10 +27,13 @@ df['label'] = expert_results[experts[0]]['true class'].iloc[:-1].apply(lambda x:
 t = np.zeros(len(df))
 pred_weighted = np.zeros((len(df), 4))
 
+df['num_mistakes'] = np.zeros(len(df))
+
 for expert in experts:
     tmp = expert_results[expert]
     tmp = tmp.set_index('image').loc[df['filename']].reset_index()
     df[expert] = tmp['response'].apply(lambda x: lab_to_int[x])
+    df['num_mistakes'] += (df[expert].values != df['label']).astype(int)
     try:
         df[expert + '_uncertainty'] = tmp['certainty']
     except KeyError:
