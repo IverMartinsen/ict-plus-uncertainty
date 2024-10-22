@@ -88,17 +88,20 @@ def make_calibration_plots(y_pred, y_true, destination, num_bins=9, fname=None):
     step = bins[1] - bins[0]
 
     plt.figure(figsize=(10, 5))
-    plt.bar((low + upp) / 2, obs, width=step*0.95, color="b")
+    plt.bar((low + upp) / 2, obs, width=step*0.95, color="tab:orange")
     plt.xlabel("Predicted probability")
     plt.ylabel("Observations per bin")
     plt.savefig(os.path.join(destination, "observations.png"), dpi=300)
     plt.close()
     
     plt.figure(figsize=(10, 5))
-    plt.bar((low + upp) / 2, freqs, width=step*0.95, color="b")
-    plt.step(bins, np.concatenate([[0], preds]), where="pre", color="k", linestyle="--")
-    plt.xlabel("Predicted probability")
-    plt.ylabel("Observed frequency")
+    plt.bar((low + upp) / 2, freqs, width=step*0.95, color="tab:olive")
+    plt.step(bins, np.concatenate([[0], preds]), where="pre", color="k", linestyle="--", linewidth=3)
+    plt.xlabel("Predicted probability", fontsize=15)
+    plt.ylabel("Observed frequency", fontsize=15)
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
+    plt.tight_layout()
     #plt.title(f"Calibration error: {error:.3f}")
     if fname is not None:
         plt.savefig(os.path.join(destination, fname), dpi=300)
@@ -153,11 +156,14 @@ def make_ordered_calibration_plot(y_pred, y_true, destination, num_bins=20, fnam
     error = (np.abs(conf - acc) * obs / n).sum()
 
     plt.figure(figsize=(10, 5))
-    plt.plot(np.linspace(0, 1, num_bins), conf - acc, marker='o')
+    plt.plot(np.linspace(0, 1, num_bins), conf - acc, marker='o', linewidth=3)
     plt.xticks(np.linspace(0, 1, num_bins), conf.round(2), rotation=45)
     plt.ylim(-0.3, 0.3)
-    plt.xlabel('Confidence')
-    plt.ylabel('Confidence - Accuracy')
+    plt.xlabel('Confidence', fontsize=15)
+    plt.ylabel('Confidence - Accuracy', fontsize=15)
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
+    plt.tight_layout()
     #plt.title(f'Reliability Diagram\nExpected Calibration Error: {error:.4f}')
     plt.grid()
     if fname is not None:
