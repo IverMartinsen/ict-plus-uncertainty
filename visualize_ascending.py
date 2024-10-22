@@ -15,10 +15,10 @@ fig, ax = plt.subplots(figsize=(10, 5))
 
 y_e = df_experts['weighted_confidence'].values
 z = df_experts['label'].values
-x = np.argsort(y_e)
-y_e = y_e[x]
-z = z[x]
-x = np.arange(len(x))
+order = np.argsort(y_e)
+y_e = y_e[order]
+z = z[order]
+x = np.arange(len(order))
 
 markers = ['o', 'x', 's', '>']
 
@@ -39,10 +39,10 @@ fig, ax = plt.subplots(figsize=(10, 5))
 
 y = df_model['conf_mean'].values
 z = df_model['label']
-x = np.argsort(y)
-y = y[x]
-z = z[x]
-x = np.arange(len(x))
+#x = np.argsort(y)
+y = y[order]
+z = z[order]
+x = np.arange(len(order))
 
 markers = ['o', 'x', 's', '>']
 
@@ -65,9 +65,9 @@ fig, ax = plt.subplots(figsize=(10, 5))
 y = df_model['conf_mean'].values - y_e
 z = df_model['label']
 x = np.argsort(y)
-y = y[x]
-z = z[x]
-x = np.arange(len(x))
+y = y[order]
+z = z[order]
+x = np.arange(len(order))
 
 markers = ['o', 'x', 's', '>']
 
