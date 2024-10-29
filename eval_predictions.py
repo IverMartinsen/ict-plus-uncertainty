@@ -8,7 +8,7 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, cohen_kappa_score
+from sklearn.metrics import classification_report, cohen_kappa_score, brier_score_loss
 from utils.utils import (
     store_predictions, 
     store_confusion_matrix, 
@@ -60,6 +60,16 @@ def store_summary_stats(df, destination, num_models=10, fname='summary.csv'):
     summary['acc_by_median_vote'] = (df['label'] == df['pred_median']).mean()
     summary['loss_by_mean'] = df['loss_mean'].mean()
     summary['loss_by_median'] = df['loss_median'].mean()
+    brier_score = 0
+    for i in range(4):
+        brier_score += brier_score_loss(labels == i, Y_pred.mean(axis=1)[:, i])
+    summary['brier_by_mean'] = brier_score
+    conf_median = np.median(Y_pred, axis=1)
+    conf_median /= conf_median.sum(axis=1)[:, None]
+    brier_score = 0
+    for i in range(4):
+        brier_score += brier_score_loss(labels == i, conf_median[:, i])
+    summary['brier_by_median'] = brier_score
     
     x = df[key_uncertainty]
     z = df['label'] == df[key_pred]
