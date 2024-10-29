@@ -28,10 +28,14 @@ for i, expert1 in enumerate(experts):
         
         x = df[expert1 + '_uncertainty'] + np.random.normal(0, 1, len(df))
         y = df[expert2 + '_uncertainty'] + np.random.normal(0, 1, len(df))
-        plt.scatter(x, y, s=10)
-        plt.xlabel(f'{expert1} uncertainty')
-        plt.ylabel(f'{expert2} uncertainty')
-        plt.title(f'{expert1} vs {expert2}')
+        plt.scatter(x, y, s=50, marker='x', color='black')
+        plt.xlabel(f'Confidence, expert {i+1}', fontsize=15)
+        plt.ylabel(f'Confidence, expert {j+1}', fontsize=15)
+        plt.xticks(fontsize=15)
+        plt.yticks(fontsize=15)
+        plt.grid()
+        plt.tight_layout()
+        #plt.title(f'{expert1} vs {expert2}')
         plt.savefig(os.path.join(destination, f'{expert1}_vs_{expert2}.pdf'), dpi=300)
         plt.close()
 
