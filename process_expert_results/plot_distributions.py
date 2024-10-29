@@ -21,16 +21,19 @@ experts = ['Tine', 'Marit-Solveig', 'Kasia', 'Morten', 'Steffen', 'Eirik '][:4] 
 # ==============================
 plt.figure(figsize=(10, 5))
 
-for expert in experts:
+for i, expert in enumerate(experts):
     time = df[expert + '_time']
     x = np.linspace(time.min(), time.max(), 100)
     kde = gaussian_kde(time)
-    plt.fill_between(x, kde(x) * time.size, alpha=0.85, label=expert)
+    plt.fill_between(x, kde(x) * time.size, alpha=0.85, label=f'Expert {i+1}')
 
 plt.legend()
-plt.xlabel('Time (s)')
-plt.ylabel('Density')
-plt.title('Original time distribution')
+plt.xlabel('Time (s)', fontsize=15)
+plt.ylabel('Density', fontsize=15)
+#plt.title('Original time distribution', fontsize=15)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.tight_layout()
 plt.savefig(os.path.join(destination, 'time_distribution.pdf'), dpi=300)
 plt.close()
 
@@ -62,9 +65,12 @@ plt.fill_between(x, kde(x) * t.size, alpha=0.85, label='Correct prediction')
 kde = gaussian_kde(t[r != y])
 plt.fill_between(x, kde(x) * t.size, alpha=0.85, label='Incorrect prediction')
 plt.legend()
-plt.xlabel('Time (s)')
-plt.ylabel('Density')
-plt.title('Standardized time distribution')
+plt.xlabel('Time (s)', fontsize=15)
+plt.ylabel('Density', fontsize=15)
+#plt.title('Standardized time distribution', fontsize=15)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.tight_layout()
 plt.savefig(os.path.join(destination, 'standardized_time_distribution.pdf'), dpi=300)
 plt.close()
 
