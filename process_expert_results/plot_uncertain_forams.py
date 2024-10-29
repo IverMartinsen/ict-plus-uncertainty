@@ -22,16 +22,24 @@ df = pd.read_csv(os.path.join(destination, 'predictions.csv'))
 df_ = df[(df['weighted_confidence'] < 0.5625)]
 df_.to_csv(os.path.join(destination, 'uncertaint_images.csv'))
 
-fig, ax = plt.subplots(6, 6, figsize=(14, 14))
+lab_to_long = {'A': 'B. Agglutinated', 'B': 'B. Calcareous', 'S': 'Sediment', 'P': 'Planktic'}
+
+fig, ax = plt.subplots(4, 8, figsize=(20, 10))
 for i, ax_ in enumerate(ax.flatten()):
     try:
         path = os.path.join(path_to_files, df_['filename'].iloc[i][0], df_['filename'].iloc[i])
         label = lab_to_long[int_to_lab[df_['label'].iloc[i]]]
         pred = lab_to_long[int_to_lab[df_['pred_mode'].iloc[i]]]
         ax_.imshow(Image.open(path).resize((224, 224)))
-        ax_.set_title(f'Label: {label}\nPred: {pred}\nFile: {os.path.basename(path)}', fontsize=6, fontweight='bold')
+        if label == pred:
+            color = 'green'
+        else:
+            color = 'red'
+        ax_.set_title(f'Label: {label}\nPred: {pred}\nFile: {os.path.basename(path)}', fontsize=10, fontweight='bold', color=color)
     except:
         pass
     ax_.axis('off')
 plt.subplots_adjust(hspace=0.3)
+plt.tight_layout()
 plt.savefig(os.path.join(destination, 'uncertain_images.pdf'), dpi=300, bbox_inches='tight')
+plt.close()
