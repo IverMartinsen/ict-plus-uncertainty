@@ -6,7 +6,7 @@ data_path="./data/Training_Dataset_Cropped_Split/"
 image_size = [224, 224]
 batch_size = 64
 random_seed = 1
-s = 2.0
+s = 1.0
 
 X_train, y_train = load_data(data_path + '/train/')
 
@@ -28,10 +28,10 @@ for batch in ds_train:
     images = augmentation(X_batch, training=True)
     for i in range(4):
         axs[i, 0].imshow(X_batch[i] / 255.)
-        axs[i, 0].set_title(f"Original", fontsize=20)
+        axs[i, 0].set_title(f"Original", fontsize=30, fontweight='bold')
         axs[i, 0].axis('off')
         axs[i, 1].imshow(images[i] / 255.)
-        axs[i, 1].set_title(f"Augmented", fontsize=20)
+        axs[i, 1].set_title(f"Augmented", fontsize=30, fontweight='bold')
         axs[i, 1].axis('off')
 
     plt.tight_layout()
