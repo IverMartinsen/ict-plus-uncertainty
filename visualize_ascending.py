@@ -7,6 +7,9 @@ from utils.utils import int_to_lab, lab_to_long
 df_experts = pd.read_csv("./results/expert_results/predictions.csv")
 df_model = pd.read_csv('./results/ensemble_results/predictions.csv')
 
+df_model['filename'] = df_model['filename'].apply(lambda x: x.split('/')[-1])
+df_model = df_model.set_index('filename').loc[df_experts['filename']].reset_index()
+
 # ==============================
 # SCATTER PLOT OF CONFIDENCE IN ASCENDING ORDER
 # ==============================
@@ -81,3 +84,19 @@ plt.savefig('model_minus_expert_confidence_ascending.pdf', dpi=300)
 plt.close()
 
 
+# straight scattter plot
+fig, ax = plt.subplots(figsize=(10, 5))
+x = df_experts['weighted_confidence'].values
+y = df_model['conf_mean'].values
+z = df_model['label']
+
+markers = ['o', 'x', 's', '>']
+
+for i, label in enumerate(df_model['label'].unique()):
+    idx = z == label
+    ax.scatter(x[idx], y[idx], label=lab_to_long[int_to_lab[label]], s=20, marker=markers[i])
+ax.set_xlabel('Expert confidence', fontsize=12)
+ax.set_ylabel('Ensemble confidence', fontsize=12)
+ax.legend(fontsize=12)
+plt.savefig('model_vs_expert_confidence.pdf', dpi=300)
+plt.close()
