@@ -5,6 +5,7 @@ from PIL import Image
 from utils.utils import lab_to_long, int_to_lab
 
 path = "/Users/ima029/Desktop/IKT+ Uncertainty/Repository/data/Man vs machine_Iver_cropped/"
+display_filenames = False
 
 # shared mistakes and predictions between ensembles and TTA(s=1)
 filenames = [   
@@ -63,7 +64,10 @@ for i, file in enumerate(filenames):
         color = 'black'
     axs[i//4, i%4].imshow(img)
     axs[i//4, i%4].axis('off')
-    axs[i//4, i%4].set_title(f'Label: {label}\nPred.: {pred}\nFilename: {filename}', fontsize=15, fontweight='bold')
+    if display_filenames:
+        axs[i//4, i%4].set_title(f'Label: {label}\nPred.: {pred}\nFilename: {filename}', fontsize=15, fontweight='bold')
+    else:
+        axs[i//4, i%4].set_title(f'Label: {label}\nPred.: {pred}', fontsize=15, fontweight='bold')
     # add a red border to the image if the prediction is wrong
     for spine in axs[i//4, i%4].spines.values():
         spine.set_edgecolor(color)

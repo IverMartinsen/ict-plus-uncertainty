@@ -10,6 +10,7 @@ from utils.utils import int_to_lab, lab_to_long
 
 destination = "./results/expert_results/"
 path_to_files = "./data/Man vs machine_Iver_cropped"
+display_filenames = False
 
 os.makedirs(destination, exist_ok=True)
 
@@ -35,7 +36,10 @@ for i, ax_ in enumerate(ax.flatten()):
             color = 'green'
         else:
             color = 'red'
-        ax_.set_title(f'Label: {label}\nPred: {pred}\nFile: {os.path.basename(path)}', fontsize=10, fontweight='bold', color=color)
+        if display_filenames:
+            ax_.set_title(f'Label: {label}\nPred: {pred}\nFile: {os.path.basename(path)}', fontsize=10, fontweight='bold', color=color)
+        else:
+            ax_.set_title(f'Label: {label}\nPred: {pred}', fontsize=10, fontweight='bold', color=color)
     except:
         pass
     ax_.axis('off')
