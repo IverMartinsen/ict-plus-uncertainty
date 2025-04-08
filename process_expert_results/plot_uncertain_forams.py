@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from utils.utils import int_to_lab, lab_to_long
 
-destination = "./results/expert_results/"
-path_to_files = "./data/Man vs machine_Iver_cropped"
+destination = "./results/expert_results-kopi/"
+path_to_files = "./data/Man vs machine_Iver_cropped_with_scale"
 display_filenames = False
 
 os.makedirs(destination, exist_ok=True)

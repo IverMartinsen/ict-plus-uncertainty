@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from utils.utils import lab_to_long, int_to_lab
 
-path = "/Users/ima029/Desktop/IKT+ Uncertainty/Repository/data/Man vs machine_Iver_cropped/"
+path = "/Users/ima029/Desktop/IKT+ Uncertainty/Repository/data/Man vs machine_Iver_cropped_with_scale/"
 display_filenames = False
 
 # shared mistakes and predictions between ensembles and TTA(s=1)
